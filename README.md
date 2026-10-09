@@ -51,22 +51,28 @@ pengujian. VST2 hanya mungkin kalau kamu sudah punya lisensi SDK VST2 lama.
 
 ## Rencana
 
-1. **Prototipe Python/PyTorch:** kumpulkan data, latih model satu pasangan gitar, evaluasi dengan telinga
-   dan spektrum.
-2. **Inferensi real-time di plugin:** model kecil dan kausal (latensi rendah), dijalankan dengan RTNeural
+Produk akhirnya satu plugin per gitar target: **4real-audio LP** (Les Paul: 3-way, 2 volume, 2 tone),
+**STR** (Stratocaster: 5-way, 1 volume, 2 tone), **JZM** (Jazzmaster), **TCR** (Telecaster), dan
+**335** (ES-335), masing-masing dengan UI bergaya gitar dan knob yang berfungsi seperti gitar aslinya.
+
+1. **Prototipe model fisik (sudah ada, lihat `training/`):** model elektronika gitar (pickup, volume,
+   tone, selector) dengan tes dan skrip pemrosesan WAV. Belum neural network.
+2. **Rekam data dari Stratocaster HSS** sesuai `docs/RECORDING_PROTOCOL.md`, lalu kalibrasi nilai
+   komponen model ke gitarmu.
+3. **Neural network:** mempelajari sisanya (pengaruh posisi pickup yang bergantung pada nada, dinamika).
+   Butuh data berpasangan atau metode tanpa pasangan.
+4. **Inferensi real-time di plugin:** model kecil dan kausal (latensi rendah), dijalankan dengan RTNeural
    atau NAM core, disisipkan di `processBlock()` (lihat komentar TODO di `Source/PluginProcessor.cpp`).
-3. **UI bergaya Ample Guitar:** gambar gitar dan knob yang sesuai gitar aslinya.
-4. Deteksi otomatis jenis gitar input sebagai fitur tambahan (awalnya dipilih manual lewat dropdown).
+5. **UI bergaya gitar** per model, dan deteksi otomatis jenis gitar dan posisi pickup input
+   (awalnya dipilih manual lewat dropdown).
 
 ## Catatan data latih
 
-- Capture amp (misalnya di Tone3000) berisi model **amp/pedal**, bukan rekaman gitar dengan pickup
-  berbeda, jadi tidak cocok sebagai data utama untuk mengubah gitar menjadi gitar lain.
-- Tersedia secara publik bukan berarti bebas dipakai: tanpa lisensi tertulis, hak ciptanya tetap pada
-  pembuat. Pakai rekaman sendiri atau dataset dengan lisensi yang jelas, dan catat sumber serta
-  lisensinya.
-- Sandbox tempat kode ini dibuat tidak bisa mengakses Hugging Face, jadi pengunduhan dataset sebaiknya
-  dilakukan di PC kamu.
+Daftar dataset publik yang sudah dicek lisensinya ada di `docs/DATA_SOURCES.md`. Intinya: tidak ada
+dataset publik berpasangan (performa sama, gitar berbeda), jadi rekaman gitar sendiri adalah data
+inti. Capture amp seperti Tone3000 adalah model amp/pedal, bukan pickup. Tersedia publik bukan berarti
+bebas dipakai, jadi cek lisensi dan catat sumbernya. Sandbox pembuatan kode ini tidak bisa mengakses
+Hugging Face, jadi pengunduhan dataset dilakukan di PC kamu.
 
 ## Lisensi JUCE
 
