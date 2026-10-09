@@ -1,0 +1,9 @@
+build/
+dist/
+.vs/
+.vscode/
+*.user
+*.suo
+__pycache__/
+*.pyc
+.DS_Store
