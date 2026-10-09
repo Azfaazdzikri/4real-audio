@@ -2,7 +2,7 @@
 REM Build 4real-audio (VST3 + Standalone) on Windows.
 REM Requirements: Visual Studio 2022 (or Build Tools) with "Desktop development with C++", CMake, Git.
 
-cmake -S . -B build -G "Visual Studio 17 2022" -A x64 || goto :error
+cmake -S . -B build -A x64 || goto :error
 cmake --build build --config Release --target FourRealAudio_VST3 FourRealAudio_Standalone --parallel || goto :error
 
 echo.
