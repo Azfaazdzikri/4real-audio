@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "PluginProcessor.h"
 
@@ -14,19 +16,39 @@ public:
     void resized() override;
 
 private:
+    using Apvts = juce::AudioProcessorValueTreeState;
+
+    struct Knob
+    {
+        juce::Slider slider;
+        juce::Label label;
+        std::unique_ptr<Apvts::SliderAttachment> attachment; // declared last: destroyed first
+    };
+
+    struct Choice
+    {
+        juce::ComboBox box;
+        juce::Label label;
+        std::unique_ptr<Apvts::ComboBoxAttachment> attachment;
+    };
+
+    struct Toggle
+    {
+        juce::ToggleButton button;
+        std::unique_ptr<Apvts::ButtonAttachment> attachment;
+    };
+
+    void setupKnob (Knob&, const juce::String& paramId, const juce::String& text, bool isDb);
+    void setupChoice (Choice&, const juce::String& paramId, const juce::String& text);
+    void setupToggle (Toggle&, const juce::String& paramId, const juce::String& text);
     void timerCallback() override;
 
     FourRealAudioProcessor& audioProcessor;
 
-    juce::Slider inputKnob, outputKnob;
-    juce::Label inputLabel, outputLabel, sourceLabel, targetLabel;
-    juce::ComboBox sourceBox, targetBox;
-
-    // Attachments must be declared after the components they control.
-    using SliderAttachment = juce::AudioProcessorValueTreeState::SliderAttachment;
-    using ComboAttachment  = juce::AudioProcessorValueTreeState::ComboBoxAttachment;
-    std::unique_ptr<SliderAttachment> inputAttachment, outputAttachment;
-    std::unique_ptr<ComboAttachment> sourceAttachment, targetAttachment;
+    Knob inputKnob, volNeckKnob, volBridgeKnob, toneNeckKnob, toneBridgeKnob, outputKnob;
+    Choice sourceGuitar, sourcePosition, targetSelector;
+    Toggle voicingToggle, keepLevelToggle;
+    juce::Label sourceHeader, targetHeader;
 
     juce::Rectangle<int> meterArea;
     float inputLevel = 0.0f;

@@ -41,7 +41,12 @@ target_sources(FourRealAudio PRIVATE
     Source/PluginProcessor.cpp
     Source/PluginProcessor.h
     Source/PluginEditor.cpp
-    Source/PluginEditor.h)
+    Source/PluginEditor.h
+    Source/dsp/GuitarCircuit.cpp
+    Source/dsp/GuitarCircuit.h
+    Source/dsp/FilterDesign.cpp
+    Source/dsp/FilterDesign.h
+    Source/dsp/CrossfadeFir.h)
 
 target_compile_definitions(FourRealAudio PUBLIC
     JUCE_WEB_BROWSER=0
@@ -55,3 +60,13 @@ target_link_libraries(FourRealAudio
         juce::juce_recommended_config_flags
         juce::juce_recommended_lto_flags
         juce::juce_recommended_warning_flags)
+
+# --- Optional DSP tests (no JUCE needed) -------------------------------------
+option(FOURREAL_BUILD_TESTS "Build the standalone DSP tests" OFF)
+if(FOURREAL_BUILD_TESTS)
+    add_executable(dsp_test
+        tests/dsp_test.cpp
+        Source/dsp/GuitarCircuit.cpp
+        Source/dsp/FilterDesign.cpp)
+    target_include_directories(dsp_test PRIVATE Source/dsp)
+endif()

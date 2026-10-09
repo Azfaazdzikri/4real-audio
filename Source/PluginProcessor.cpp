@@ -3,9 +3,9 @@
 
 namespace
 {
-    const juce::StringArray guitarChoices { "Stratocaster (single coil)",
-                                            "Jazzmaster",
-                                            "Les Paul (humbucker)" };
+    // Parameters that change the voicing filter.
+    const char* const voicingParamIds[] = { "voicing", "keepLevel", "srcGuitar", "srcPos", "tgtSel",
+                                            "volNeck", "volBridge", "toneNeck", "toneBridge" };
 
     float peakOf (const juce::AudioBuffer<float>& buffer)
     {
@@ -41,6 +41,15 @@ FourRealAudioProcessor::FourRealAudioProcessor()
                           .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "STATE", createLayout())
 {
+    for (auto* id : voicingParamIds)
+        apvts.addParameterListener (id, this);
+}
+
+FourRealAudioProcessor::~FourRealAudioProcessor()
+{
+    cancelPendingUpdate();
+    for (auto* id : voicingParamIds)
+        apvts.removeParameterListener (id, this);
 }
 
 juce::AudioProcessorValueTreeState::ParameterLayout FourRealAudioProcessor::createLayout()
@@ -49,35 +58,97 @@ juce::AudioProcessorValueTreeState::ParameterLayout FourRealAudioProcessor::crea
 
     std::vector<std::unique_ptr<RangedAudioParameter>> params;
 
-    params.push_back (std::make_unique<AudioParameterFloat> (
-        ParameterID { "inputGain", 1 }, "Input",
-        NormalisableRange<float> (-24.0f, 24.0f, 0.1f), 0.0f,
-        AudioParameterFloatAttributes().withLabel ("dB")));
+    auto gainParam = [&params] (const char* id, const char* name)
+    {
+        params.push_back (std::make_unique<AudioParameterFloat> (
+            ParameterID { id, 1 }, name, NormalisableRange<float> (-24.0f, 24.0f, 0.1f), 0.0f,
+            AudioParameterFloatAttributes().withLabel ("dB")));
+    };
+    gainParam ("inputGain", "Input");
+    gainParam ("outputGain", "Output");
 
-    params.push_back (std::make_unique<AudioParameterFloat> (
-        ParameterID { "outputGain", 1 }, "Output",
-        NormalisableRange<float> (-24.0f, 24.0f, 0.1f), 0.0f,
-        AudioParameterFloatAttributes().withLabel ("dB")));
-
-    // Stored for later; not used by the DSP yet.
-    params.push_back (std::make_unique<AudioParameterChoice> (
-        ParameterID { "source", 1 }, "Source guitar", guitarChoices, 0));
+    params.push_back (std::make_unique<AudioParameterBool> (ParameterID { "voicing", 1 }, "Voicing", true));
+    params.push_back (std::make_unique<AudioParameterBool> (ParameterID { "keepLevel", 1 }, "Keep level difference", true));
 
     params.push_back (std::make_unique<AudioParameterChoice> (
-        ParameterID { "target", 1 }, "Target guitar", guitarChoices, 2));
+        ParameterID { "srcGuitar", 1 }, "Source guitar", StringArray { "Strat HSS", "Strat SSS" }, 0));
+    params.push_back (std::make_unique<AudioParameterChoice> (
+        ParameterID { "srcPos", 1 }, "Source pickup position",
+        StringArray { "1 Bridge", "2 Bridge+Mid", "3 Mid", "4 Mid+Neck", "5 Neck" }, 0));
+    params.push_back (std::make_unique<AudioParameterChoice> (
+        ParameterID { "tgtSel", 1 }, "Les Paul selector", StringArray { "Neck", "Both", "Bridge" }, 2));
+
+    auto knobParam = [&params] (const char* id, const char* name)
+    {
+        params.push_back (std::make_unique<AudioParameterFloat> (
+            ParameterID { id, 1 }, name, NormalisableRange<float> (0.0f, 10.0f, 0.1f), 10.0f));
+    };
+    knobParam ("volNeck", "Volume neck");
+    knobParam ("volBridge", "Volume bridge");
+    knobParam ("toneNeck", "Tone neck");
+    knobParam ("toneBridge", "Tone bridge");
 
     return { params.begin(), params.end() };
 }
 
+std::vector<float> FourRealAudioProcessor::designTaps() const
+{
+    auto get = [this] (const char* id) { return apvts.getRawParameterValue (id)->load(); };
+
+    if (get ("voicing") < 0.5f)
+        return fourreal::identityTaps();
+
+    using namespace fourreal;
+    const auto grid = makeFrequencyGrid (currentSampleRate);
+
+    StratParams source;
+    source.position = static_cast<int> (get ("srcPos") + 0.5f) + 1;
+    const auto kind = get ("srcGuitar") < 0.5f ? StratKind::HSS : StratKind::SSS;
+
+    LesPaulParams target;
+    target.selector = static_cast<LesPaulSelector> (static_cast<int> (get ("tgtSel") + 0.5f));
+    target.volNeck = get ("volNeck");
+    target.volBridge = get ("volBridge");
+    target.toneNeck = get ("toneNeck");
+    target.toneBridge = get ("toneBridge");
+
+    return designVoicingTaps (stratResponse (grid, kind, source),
+                              lesPaulResponse (grid, target),
+                              grid, currentSampleRate, get ("keepLevel") > 0.5f);
+}
+
+void FourRealAudioProcessor::parameterChanged (const juce::String&, float)
+{
+    triggerAsyncUpdate(); // coalesces bursts of knob movements; runs on the message thread
+}
+
+void FourRealAudioProcessor::handleAsyncUpdate()
+{
+    auto taps = designTaps();
+    {
+        const juce::SpinLock::ScopedLockType lock (tapsLock);
+        pendingTaps = std::move (taps);
+    }
+    tapsReady.store (true);
+}
+
 void FourRealAudioProcessor::prepareToPlay (double sampleRate, int /*samplesPerBlock*/)
 {
+    currentSampleRate = sampleRate;
+
     inputGain.reset (sampleRate, 0.02);
     outputGain.reset (sampleRate, 0.02);
-
     inputGain.setCurrentAndTargetValue (
         juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("inputGain")->load()));
     outputGain.setCurrentAndTargetValue (
         juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("outputGain")->load()));
+
+    voicing.prepare (2, fourreal::kVoicingTaps, 1024);
+    {
+        const juce::SpinLock::ScopedLockType lock (tapsLock);
+        pendingTaps = designTaps();
+    }
+    tapsReady.store (true);
 }
 
 bool FourRealAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
@@ -102,6 +173,16 @@ void FourRealAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
 
     inputPeak.store (peakOf (buffer));
 
+    if (tapsReady.load())
+    {
+        const juce::SpinLock::ScopedTryLockType lock (tapsLock);
+        if (lock.isLocked())
+        {
+            voicing.setTaps (pendingTaps.data());
+            tapsReady.store (false);
+        }
+    }
+
     inputGain.setTargetValue (
         juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("inputGain")->load()));
     outputGain.setTargetValue (
@@ -109,10 +190,9 @@ void FourRealAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
 
     applySmoothedGain (buffer, inputGain);
 
-    // ---------------------------------------------------------------------
-    // TODO: neural-network guitar transform goes here (source -> target).
-    // For now the signal passes through clean.
-    // ---------------------------------------------------------------------
+    // Source-guitar -> target-guitar voicing (physical model; neural stage comes later).
+    voicing.process (buffer.getArrayOfWritePointers(), juce::jmin (buffer.getNumChannels(), 2),
+                     buffer.getNumSamples());
 
     applySmoothedGain (buffer, outputGain);
 

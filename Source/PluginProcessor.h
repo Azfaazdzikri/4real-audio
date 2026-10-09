@@ -2,17 +2,23 @@
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
-// 4real-audio - guitar tone transformer.
+#include "dsp/CrossfadeFir.h"
+#include "dsp/FilterDesign.h"
+#include "dsp/GuitarCircuit.h"
+
+// 4real-audio - guitar tone transformer, v0.2 test build.
 //
-// v0.1 is a TEST BUILD: audio passes through clean (with input/output gain).
-// The "Source guitar" and "Target guitar" parameters are stored and saved with the
-// project, but they do not change the sound yet. The neural-network stage will be
-// inserted in processBlock() between the input gain and the output gain.
-class FourRealAudioProcessor : public juce::AudioProcessor
+// The audio is filtered by the difference between two physical models of guitar
+// electronics: the SOURCE guitar (a Stratocaster preset) and the TARGET guitar (a Les Paul
+// preset with its own selector, 2 volume and 2 tone knobs). This is NOT the neural-network
+// stage yet: it captures the fixed linear part of pickup/knob behaviour only.
+class FourRealAudioProcessor : public juce::AudioProcessor,
+                               private juce::AudioProcessorValueTreeState::Listener,
+                               private juce::AsyncUpdater
 {
 public:
     FourRealAudioProcessor();
-    ~FourRealAudioProcessor() override = default;
+    ~FourRealAudioProcessor() override;
 
     void prepareToPlay (double sampleRate, int samplesPerBlock) override;
     void releaseResources() override {}
@@ -46,8 +52,18 @@ public:
     std::atomic<float> outputPeak { 0.0f };
 
 private:
+    void parameterChanged (const juce::String& parameterID, float newValue) override;
+    void handleAsyncUpdate() override;
+    std::vector<float> designTaps() const;
+
     juce::SmoothedValue<float> inputGain { 1.0f };
     juce::SmoothedValue<float> outputGain { 1.0f };
+
+    fourreal::CrossfadeFir voicing;
+    std::vector<float> pendingTaps;
+    juce::SpinLock tapsLock;
+    std::atomic<bool> tapsReady { false };
+    double currentSampleRate = 48000.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FourRealAudioProcessor)
 };

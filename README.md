@@ -8,13 +8,19 @@ Outputnya tetap **clean** (tanpa amp/cab/pedal), jadi ditaruh sebelum AmpliTube 
 Input gitar -> UADx 1176 -> [ 4real-audio ] -> AmpliTube 5 -> ...
 ```
 
-## Status: v0.1 (test build)
+## Status: v0.2 (test build, tanpa neural network)
 
-- Audio masuk lalu keluar **tanpa diubah** (hanya ada knob Input / Output gain dan meter).
-- Pilihan "Source guitar" dan "Target guitar" sudah tersimpan di project DAW, tapi **belum mengubah suara**.
-- Model neural network belum ada. Versi ini hanya untuk memastikan plugin bisa dimuat dan dites di Studio One.
-- Kode belum pernah dikompilasi penuh di Windows oleh pembuatnya (hanya dicek sintaksnya terhadap JUCE 9.0.3).
-  Kalau build gagal, kirim teks error-nya.
+- Suara gitar difilter oleh **selisih dua model fisik elektronika gitar**: gitar sumber (preset Stratocaster
+  HSS atau SSS, pilih posisi selector 1 sampai 5) dan gitar target (preset Les Paul: selector Neck/Both/Bridge,
+  2 volume, 2 tone). Kontrol target bekerja seperti rangkaian aslinya (misalnya tone 0 menutup suara tinggi,
+  volume rendah meredam resonansi pickup).
+- Tombol **Voicing on** untuk A/B (mematikan filter), dan **Keep level difference** untuk menyertakan
+  atau menghilangkan selisih level antar gitar.
+- Ini **bukan suara Les Paul yang sebenarnya**: hanya bagian linear tetap dari pickup dan knob yang ditangkap.
+  Efek posisi pickup yang bergantung nada, dinamika, dan karakter bodi/senar butuh model neural network.
+  Nilai komponen di preset adalah angka umum, bukan hasil ukur gitar tertentu.
+- Model fisiknya sama dengan prototipe Python di `training/` (hasil C++ dan Python dicek identik oleh
+  `tests/check_parity.py`).
 
 ## Cara mendapatkan file VST3 (Windows)
 
