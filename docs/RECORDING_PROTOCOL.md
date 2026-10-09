@@ -1,50 +1,80 @@
-# Protokol rekaman Stratocaster HSS
+# Protokol rekaman untuk data 4real-audio
 
-Tujuan: mendapatkan data dari gitarmu sendiri yang cukup untuk (1) mengkalibrasi model sirkuit gitar
-di `training/`, dan (2) nanti melatih neural network. Semua rekaman adalah **DI kering**: tidak ada
-amp, pedal, atau plugin di jalur sinyal.
+Tujuan: rekaman gitar kering (DI) yang rapi dan konsisten, supaya bisa dipakai untuk
+(1) mengkalibrasi model sirkuit gitar di `training/`, dan (2) nanti melatih neural network.
 
-## Pengaturan tetap (jangan diubah antar rekaman)
+## Format file
 
-- Input Hi-Z audio interface yang sama, kabel yang sama, gain interface yang sama.
-- 48 kHz, 24-bit atau 32-bit float. Puncak sinyal sekitar -12 dBFS, jangan sampai clip.
-- Senar, tinggi pickup, dan posisi gitar tidak diubah selama sesi.
+- **WAV, bukan MP3.** MP3 membuang detail frekuensi tinggi dan menambah artefak kompresi, padahal
+  detail itulah yang membedakan pickup. Model bisa ikut belajar artefak MP3.
+- **24-bit (atau 32-bit float), 48 kHz, mono.** 96 atau 192 kHz tidak perlu: plugin berjalan di
+  44,1/48 kHz dan isi suara gitar di bawah 20 kHz.
+- Satu file per pengaturan (gitar, posisi selector, knob). Jangan campur beberapa pengaturan
+  dalam satu file.
+
+## Pengaturan tetap
+
+- Input Hi-Z interface, kabel dan gain interface sama untuk semua rekaman. Puncak sinyal sekitar -12
+  sampai -6 dBFS, tidak boleh clip.
+- **Tanpa plugin di jalur sinyal** (matikan atau hapus UADx 1176 dan AmpliTube 5 di track), tanpa amp, tanpa mikrofon.
+- Satu pick yang sama, posisi tangan pemetik dijaga sama (dekat bridge atau neck mengubah warna suara).
+- Metronom 60 BPM di Studio One, satu not per ketukan, supaya rekaman antar gitar punya struktur waktu
+  yang sama.
 - Kecuali sedang menguji knob: volume 10, tone 10.
-- Matikan semua insert di track gitar saat merekam (termasuk UADx 1176 dan AmpliTube 5).
 
-## Yang direkam untuk setiap posisi selector (1 sampai 5)
+## Skrip rekaman (sekitar 25 menit per pengaturan)
 
-Catat dulu pickup apa yang aktif di tiap posisi pada gitarmu. Pada HSS posisi 2 dan 4 bisa beda
-antar gitar (misalnya humbucker di-split atau tidak), jadi tulis apa adanya.
+Jangan strum sekali saja. Satu strum hanya memberi beberapa detik data. Rekam skrip berikut.
 
-1. **Not tunggal:** tiap senar, dari fret 0 sampai 12, dipetik pelan, sedang, dan keras. Biarkan
-   sustain 3 sampai 4 detik.
-2. **Chord terbuka:** dipetik dan di-strum.
-3. **Riff:** 2 sampai 3 menit, riff yang **sama** di semua posisi (nada dan ritme semirip mungkin).
-4. **Palm mute dan picking cepat:** sekitar 1 menit.
+| # | Isi | Cara | Lama |
+|---|---|---|---|
+| 1 | Not tunggal | Tiap senar (6), fret 0 sampai 12 (13 posisi), tiap posisi dipetik pelan, sedang, dan keras. Satu not per ketukan, biarkan sustain sekitar 3 detik. Total 78 posisi x 3 kekuatan. | sekitar 16 menit |
+| 2 | Harmonik alami | Fret 12, 7, dan 5 di tiap senar, masing-masing 2 petikan. | sekitar 2 menit |
+| 3 | Chord | Chord terbuka (C, G, D, Am, Em) dan barre (F, B), masing-masing di-strum lalu dipetik per senar. | sekitar 3 menit |
+| 4 | Permainan bebas | Riff, palm mute, hammer-on, slide, bend. Riff yang sama di semua pengaturan. | sekitar 5 menit |
+| 5 | Hening | Volume gitar 10, tangan tidak menyentuh senar, 10 detik. Untuk mengenali dengung (hum). | 10 detik |
 
-Target: minimal 10 menit per posisi. Makin banyak makin baik.
+Catat not tunggal berdasarkan **senar dan fret**, bukan nama not (C, C#, D, ...). Nada yang sama di
+senar berbeda terdengar berbeda, dan efek posisi pickup bergantung pada nada, jadi urutan senar dan
+fret lebih penting daripada urutan nama not.
+
+## Ulangi untuk tiap pengaturan
+
+Ulangi skrip yang sama untuk setiap gitar dan setiap posisi selector yang ingin dipakai. Skrip,
+tempo, dan pick yang sama membuat rekaman antar gitar bisa dibandingkan.
 
 ## Menyapu knob (untuk mencocokkan model sirkuit)
 
-- Tone: satu chord sustain, putar tone dari 10 ke 0 perlahan, satu posisi selector netral (misalnya 5).
+- Tone: satu chord sustain, putar tone dari 10 ke 0 perlahan, di satu posisi selector netral.
 - Volume: satu chord sustain, putar volume dari 10 ke 0 perlahan.
 
 ## Ukur nilai listrik
 
 - Hambatan DC (DCR) tiap pickup dengan multimeter. Kalau ada LCR meter, ukur juga induktansinya.
-- Nilai pot (biasanya tertulis di badan pot, misalnya 250k) dan nilai kapasitor tone kalau terbaca.
+- Nilai pot (biasanya tertulis di badan pot) dan kapasitor tone kalau terbaca.
 - Jenis dan panjang kabel. Jangan bongkar gitar kalau tidak nyaman melakukannya.
 
-## Penamaan file
+## Penamaan file dan catatan
 
-`hss_pos1_vol10_tone10_take01.wav`, `hss_pos5_tonesweep_take01.wav`, dan seterusnya.
-Buat satu file catatan `notes.txt` berisi posisi aktif tiap selector, DCR, pot, kabel, gain interface.
+`gitarA_pos1_vol10_tone10_notes-medium.wav`, `gitarA_pos1_vol10_tone10_chords.wav`,
+`gitarA_pos1_vol10_tone10_riff.wav`, `gitarA_pos1_vol10_tone10_silence.wav`, dan seterusnya.
+Taruh di `data/raw/` (tidak ikut git). Buat `notes.txt`: merek dan model gitar, pickup di tiap posisi,
+DCR, pot, kabel, gain interface, usia senar.
 
-## Setelah direkam
+## Seberapa banyak yang cukup
 
-1. Taruh file di `data/raw/` (folder ini tidak ikut git).
-2. Jalankan `training/process_wav.py` untuk mendengar hasil model sirkuit pada rekamanmu.
-3. Kirim ke saya ringkasan `notes.txt` dan beberapa file pendek (atau hasil analisis spektrumnya)
-   supaya nilai induktansi dan kapasitansi di `training/guitar_circuit.py` bisa dikalibrasi ke
-   gitarmu, bukan angka umum.
+Ini aturan praktis, bukan angka pasti:
+
+- Untuk kalibrasi kurva respons (tanpa neural network): 2 sampai 3 menit per pengaturan sudah memberi
+  hasil stabil.
+- Untuk pelatihan neural network: sedikitnya sekitar 10 sampai 20 menit per pengaturan sebagai titik awal,
+  dan lebih banyak lebih baik. Jangkauan nada, kekuatan petikan, dan jenis permainan harus
+  tercakup, bukan sekadar lama.
+
+## Soal data berpasangan
+
+Dua gitar yang direkam terpisah **tidak** menghasilkan pasangan yang sejajar per sampel, walaupun
+nadanya sama. Rekaman seperti itu cocok untuk membandingkan kurva spektrum (sudah didukung
+`training/transfer.py`), tetapi tidak cocok untuk melatih neural network dengan cara biasa.
+Pasangan yang benar-benar sejajar hanya didapat kalau dua pickup direkam bersamaan dari gitar yang
+sama (misalnya masing-masing ke satu kanal interface), atau lewat metode pelatihan tanpa pasangan.
