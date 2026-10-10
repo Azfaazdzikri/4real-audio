@@ -13,6 +13,7 @@
 #include "CrossfadeFir.h"
 #include "FilterDesign.h"
 #include "GuitarCircuit.h"
+#include "GuitarModels.h"
 
 using namespace fourreal;
 
@@ -57,6 +58,101 @@ int main()
         const auto r = c.run();
         for (size_t i = 0; i < testFreqs.size(); ++i)
             std::printf("RESP %s %.1f %.6f\n", c.name.c_str(), testFreqs[i], db (r[i]));
+    }
+
+    // --- Generic model registry ---------------------------------------------------------------
+    {
+        const auto& models = allModels();
+        check (models.size() == 9, "registry has the source guitar plus 8 plugin targets");
+
+        const std::vector<std::string> codes { "LP", "335", "SG", "PRS", "RIC", "STR", "TCR", "FLC" };
+        for (const auto& code : codes)
+            check (findModelByCode (code) != nullptr, "model code exists: " + code);
+
+        // The generic solver must reproduce the legacy Strat / Les Paul functions.
+        auto maxDiffDb = [&] (const std::vector<cplx>& a, const std::vector<cplx>& b)
+        {
+            double worst = 0.0;
+            for (size_t i = 0; i < a.size(); ++i)
+                worst = std::max (worst, std::abs (db (a[i]) - db (b[i])));
+            return worst;
+        };
+        const auto* strat = findModelByCode ("STR");
+        const auto* lp = findModelByCode ("LP");
+        const GuitarModel* hss = nullptr;
+        for (const auto& m : models) if (std::string (m.id) == "strat-hss") hss = &m;
+        check (strat && lp && hss, "STR, LP and HSS models found");
+
+        double worstStrat = 0.0, worstHss = 0.0, worstLp = 0.0;
+        for (int pos = 0; pos < 5; ++pos)
+        {
+            const double vol = pos % 2 ? 6.0 : 10.0, tn = pos == 3 ? 2.0 : 10.0, tm = pos == 1 ? 3.0 : 10.0;
+            ModelSettings st; st.position = pos; st.volumes = { vol }; st.tones = { tn, tm };
+            worstStrat = std::max (worstStrat, maxDiffDb (modelResponse (testFreqs, *strat, st),
+                                   stratResponse (testFreqs, StratKind::SSS, { pos + 1, vol, tn, tm })));
+            worstHss = std::max (worstHss, maxDiffDb (modelResponse (testFreqs, *hss, st),
+                                 stratResponse (testFreqs, StratKind::HSS, { pos + 1, vol, tn, tm })));
+        }
+        const LesPaulSelector legacySel[3] = { LesPaulSelector::Bridge, LesPaulSelector::Both, LesPaulSelector::Neck };
+        for (int pos = 0; pos < 3; ++pos)
+        {
+            ModelSettings st; st.position = pos; st.volumes = { 6.0, 9.0 }; st.tones = { 2.0, 7.0 }; // neck, bridge
+            worstLp = std::max (worstLp, maxDiffDb (modelResponse (testFreqs, *lp, st),
+                                lesPaulResponse (testFreqs, { legacySel[pos], 6.0, 9.0, 2.0, 7.0 })));
+        }
+        std::printf("generic vs legacy: STR %.4f dB, HSS %.4f dB, LP %.4f dB\n", worstStrat, worstHss, worstLp);
+        check (worstStrat < 0.05 && worstHss < 0.05 && worstLp < 0.05,
+               "generic model solver matches the legacy Strat and Les Paul circuits (<0.05 dB)");
+
+        // Sanity checks on every model and every selector position.
+        for (const auto& m : models)
+        {
+            bool maskOk = ! m.positions.empty() && ! m.pickups.empty();
+            for (const auto& p : m.positions)
+                maskOk = maskOk && p.pickupMask != 0 && p.pickupMask < (1u << m.pickups.size());
+            check (maskOk, std::string ("selector masks are valid: ") + m.id);
+
+            for (size_t pos = 0; pos < m.positions.size(); ++pos)
+            {
+                ModelSettings full; full.position = (int) pos;
+                const auto base = modelResponse (testFreqs, m, full);
+                bool finite = true;
+                for (auto v : base) finite = finite && std::isfinite (db (v));
+
+                // Volume at 0 silences the output; volume at 5 is quieter than 10 at 1 kHz.
+                bool volOk = true;
+                for (size_t v = 0; v < m.volumes.size(); ++v)
+                {
+                    const bool active = m.volumes[v].pickup < 0
+                                        || (m.positions[pos].pickupMask & (1u << m.volumes[v].pickup)) != 0;
+                    if (! active) continue;
+                    ModelSettings low = full; low.volumes.assign (m.volumes.size(), 10.0); low.volumes[v] = 0.0;
+                    const auto r = modelResponse (testFreqs, m, low);
+                    // With two independent pickups the other channel may still be audible, so only
+                    // require a clear drop for single-channel and master volumes.
+                    const bool single = m.volumes[v].pickup < 0 || (m.positions[pos].pickupMask & (m.positions[pos].pickupMask - 1)) == 0;
+                    if (single) volOk = volOk && db (r[4]) < db (base[4]) - 40.0;
+                    else        volOk = volOk && db (r[4]) < db (base[4]) + 0.01;
+                }
+
+                // Tone at 0 darkens the top end (4 kHz drops relative to 100 Hz) for tones in circuit.
+                bool toneOk = true;
+                for (size_t t = 0; t < m.tones.size(); ++t)
+                {
+                    const bool active = m.tones[t].pickup >= 0
+                        ? (m.positions[pos].pickupMask & (1u << m.tones[t].pickup)) != 0
+                        : (m.tones[t].activeMask & m.positions[pos].pickupMask) != 0;
+                    if (! active) continue;
+                    ModelSettings dark = full; dark.tones.assign (m.tones.size(), 10.0); dark.tones[t] = 0.0;
+                    const auto r = modelResponse (testFreqs, m, dark);
+                    const double baseTilt = db (base[7]) - db (base[2]);
+                    const double darkTilt = db (r[7]) - db (r[2]);
+                    toneOk = toneOk && darkTilt < baseTilt - 0.3;
+                }
+                check (finite && volOk && toneOk,
+                       std::string ("finite, volume and tone behave: ") + m.id + " pos " + std::to_string (pos));
+            }
+        }
     }
 
     // --- FIR design: Strat SSS neck -> Les Paul bridge at 48 kHz -------------------

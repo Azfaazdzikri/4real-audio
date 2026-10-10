@@ -3,7 +3,6 @@
 namespace
 {
     const juce::Colour backgroundColour (0xff15171c);
-    const juce::Colour accentColour (0xff4fd1c5);
 
     void styleLabel (juce::Label& label, const juce::String& text, juce::Justification justification)
     {
@@ -20,7 +19,7 @@ void FourRealAudioEditor::setupKnob (Knob& k, const juce::String& paramId, const
     if (isDb)
         k.slider.setTextValueSuffix (" dB");
     k.slider.setDoubleClickReturnValue (true, isDb ? 0.0 : 10.0);
-    k.slider.setColour (juce::Slider::rotarySliderFillColourId, accentColour);
+    k.slider.setColour (juce::Slider::rotarySliderFillColourId, accent);
     styleLabel (k.label, text, juce::Justification::centred);
 
     addAndMakeVisible (k.slider);
@@ -49,15 +48,25 @@ void FourRealAudioEditor::setupToggle (Toggle& t, const juce::String& paramId, c
 FourRealAudioEditor::FourRealAudioEditor (FourRealAudioProcessor& p)
     : AudioProcessorEditor (&p), audioProcessor (p)
 {
+    const auto& target = FourRealAudioProcessor::targetModel();
+    accent = juce::Colour (target.accentRgb);
+
     setupKnob (inputKnob, "inputGain", "INPUT", true);
-    setupKnob (volNeckKnob, "volNeck", "VOL NECK", false);
-    setupKnob (volBridgeKnob, "volBridge", "VOL BRIDGE", false);
-    setupKnob (toneNeckKnob, "toneNeck", "TONE NECK", false);
-    setupKnob (toneBridgeKnob, "toneBridge", "TONE BRIDGE", false);
+    for (size_t i = 0; i < target.volumes.size(); ++i)
+    {
+        modelKnobs.push_back (std::make_unique<Knob>());
+        setupKnob (*modelKnobs.back(), "vol" + juce::String ((int) i), target.volumes[i].label, false);
+    }
+    for (size_t i = 0; i < target.tones.size(); ++i)
+    {
+        modelKnobs.push_back (std::make_unique<Knob>());
+        setupKnob (*modelKnobs.back(), "tone" + juce::String ((int) i), target.tones[i].label, false);
+    }
     setupKnob (outputKnob, "outputGain", "OUTPUT", true);
 
     styleLabel (sourceHeader, "MY GUITAR (SOURCE)", juce::Justification::centredLeft);
-    styleLabel (targetHeader, "SOUND LIKE (TARGET: LES PAUL)", juce::Justification::centredLeft);
+    styleLabel (targetHeader, juce::String ("SOUND LIKE: ") + juce::String (target.displayName).toUpperCase(),
+                juce::Justification::centredLeft);
     addAndMakeVisible (sourceHeader);
     addAndMakeVisible (targetHeader);
 
@@ -66,8 +75,9 @@ FourRealAudioEditor::FourRealAudioEditor (FourRealAudioProcessor& p)
     setupChoice (targetSelector, "tgtSel", "");
     setupToggle (voicingToggle, "voicing", "Voicing on");
     setupToggle (keepLevelToggle, "keepLevel", "Keep level difference");
+    refreshSourcePositions();
 
-    setSize (760, 470);
+    setSize (880, 470);
     startTimerHz (30);
 }
 
@@ -76,8 +86,36 @@ FourRealAudioEditor::~FourRealAudioEditor()
     stopTimer();
 }
 
+// The selector positions depend on which source guitar is chosen (3-way vs 5-way).
+void FourRealAudioEditor::refreshSourcePositions()
+{
+    const auto& models = fourreal::allModels();
+    const int guitar = juce::jlimit (0, (int) models.size() - 1,
+                                     static_cast<int> (audioProcessor.apvts.getRawParameterValue ("srcGuitar")->load() + 0.5f));
+    const auto& positions = models[static_cast<size_t> (guitar)].positions;
+    const int count = (int) positions.size();
+
+    auto* param = dynamic_cast<juce::AudioParameterChoice*> (audioProcessor.apvts.getParameter ("srcPos"));
+    int index = param != nullptr ? param->getIndex() : 0;
+    if (param != nullptr && index >= count)
+    {
+        *param = count - 1; // clamp the stored position to what this guitar has
+        index = count - 1;
+    }
+
+    sourcePosition.box.clear (juce::dontSendNotification);
+    for (int i = 0; i < count; ++i)
+        sourcePosition.box.addItem (positions[(size_t) i].name, i + 1);
+    sourcePosition.box.setSelectedId (index + 1, juce::dontSendNotification);
+    shownSourceGuitar = guitar;
+}
+
 void FourRealAudioEditor::timerCallback()
 {
+    const int guitar = static_cast<int> (audioProcessor.apvts.getRawParameterValue ("srcGuitar")->load() + 0.5f);
+    if (guitar != shownSourceGuitar)
+        refreshSourcePositions();
+
     // Quick attack, slow release.
     inputLevel  = juce::jmax (audioProcessor.inputPeak.load(),  inputLevel  * 0.85f);
     outputLevel = juce::jmax (audioProcessor.outputPeak.load(), outputLevel * 0.85f);
@@ -90,14 +128,18 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
 
     g.setColour (juce::Colours::white);
     g.setFont (juce::Font (juce::FontOptions (28.0f, juce::Font::bold)));
-    g.drawText ("4REAL AUDIO", 24, 14, getWidth() - 48, 32, juce::Justification::centredLeft);
+    const juce::String title ("4REAL AUDIO");
+    g.drawText (title, 24, 14, getWidth() - 48, 32, juce::Justification::centredLeft);
+    g.setColour (accent);
+    g.drawText (juce::String (FourRealAudioProcessor::targetModel().code), 24 + 205, 14, 120, 32,
+                juce::Justification::centredLeft);
 
     g.setColour (juce::Colours::white.withAlpha (0.5f));
     g.setFont (juce::Font (juce::FontOptions (13.0f)));
-    g.drawText ("guitar tone transformer  -  v0.2 test build (physical model of pickups and knobs, no neural model yet)",
+    g.drawText ("guitar tone transformer  -  v0.3 test build (physical model of pickups and knobs, no neural model yet)",
                 24, 44, getWidth() - 48, 18, juce::Justification::centredLeft);
 
-    auto drawMeter = [&g] (juce::Rectangle<int> r, float level, const juce::String& name)
+    auto drawMeter = [&g, this] (juce::Rectangle<int> r, float level, const juce::String& name)
     {
         g.setColour (juce::Colour (0xff2a2e38));
         g.fillRoundedRectangle (r.toFloat(), 3.0f);
@@ -105,7 +147,7 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
         const float norm = juce::jlimit (0.0f, 1.0f,
             juce::jmap (juce::Decibels::gainToDecibels (level, -60.0f), -60.0f, 0.0f, 0.0f, 1.0f));
 
-        g.setColour (norm > 0.95f ? juce::Colours::red : accentColour);
+        g.setColour (norm > 0.95f ? juce::Colours::red : accent);
         g.fillRoundedRectangle (r.withWidth (juce::roundToInt ((float) r.getWidth() * norm)).toFloat(), 3.0f);
 
         g.setColour (juce::Colours::white.withAlpha (0.8f));
@@ -129,18 +171,18 @@ void FourRealAudioEditor::resized()
 
     // Row of choices: source (guitar + position), target selector, toggles.
     auto top = area.removeFromTop (74);
-    auto sourceArea = top.removeFromLeft (350);
+    auto sourceArea = top.removeFromLeft (420);
     top.removeFromLeft (20);
-    auto targetArea = top.removeFromLeft (190);
+    auto targetArea = top.removeFromLeft (210);
     top.removeFromLeft (20);
     auto toggleArea = top;
 
     sourceHeader.setBounds (sourceArea.removeFromTop (22));
-    sourceGuitar.box.setBounds (sourceArea.removeFromLeft (165).removeFromTop (28));
+    sourceGuitar.box.setBounds (sourceArea.removeFromLeft (210).removeFromTop (28));
     sourceArea.removeFromLeft (10);
     sourcePosition.box.setBounds (sourceArea.removeFromTop (28));
 
-    targetHeader.setBounds (targetArea.removeFromTop (22).withWidth (260));
+    targetHeader.setBounds (targetArea.removeFromTop (22));
     targetSelector.box.setBounds (targetArea.removeFromTop (28));
 
     voicingToggle.button.setBounds (toggleArea.removeFromTop (26));
@@ -148,9 +190,15 @@ void FourRealAudioEditor::resized()
 
     area.removeFromTop (14);
 
-    // Six knobs in a row.
-    const int colWidth = area.getWidth() / 6;
-    for (Knob* k : { &inputKnob, &volNeckKnob, &volBridgeKnob, &toneNeckKnob, &toneBridgeKnob, &outputKnob })
+    // Knob row: INPUT, the target guitar's volume and tone knobs, OUTPUT. Centred.
+    std::vector<Knob*> knobs { &inputKnob };
+    for (auto& k : modelKnobs)
+        knobs.push_back (k.get());
+    knobs.push_back (&outputKnob);
+
+    const int colWidth = juce::jmin (130, area.getWidth() / 6);
+    area.removeFromLeft ((area.getWidth() - colWidth * (int) knobs.size()) / 2);
+    for (Knob* k : knobs)
     {
         auto col = area.removeFromLeft (colWidth);
         k->label.setBounds (col.removeFromTop (20));

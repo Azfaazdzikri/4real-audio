@@ -5,12 +5,15 @@
 #include "dsp/CrossfadeFir.h"
 #include "dsp/FilterDesign.h"
 #include "dsp/GuitarCircuit.h"
+#include "dsp/GuitarModels.h"
 
-// 4real-audio - guitar tone transformer, v0.2 test build.
+// 4real-audio - guitar tone transformer, v0.3 test build.
 //
+// One code base, one plugin per TARGET guitar (LP, 335, SG, PRS, RIC, STR, TCR, FLC): the
+// variant is chosen at compile time (FOURREAL_MODEL_<CODE>, set in CMakeLists.txt).
 // The audio is filtered by the difference between two physical models of guitar
-// electronics: the SOURCE guitar (a Stratocaster preset) and the TARGET guitar (a Les Paul
-// preset with its own selector, 2 volume and 2 tone knobs). This is NOT the neural-network
+// electronics: the SOURCE guitar (chosen by the player) and the TARGET guitar of this
+// variant, with its own selector, volume and tone knobs. This is NOT the neural-network
 // stage yet: it captures the fixed linear part of pickup/knob behaviour only.
 class FourRealAudioProcessor : public juce::AudioProcessor,
                                private juce::AudioProcessorValueTreeState::Listener,
@@ -28,7 +31,10 @@ public:
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
 
-    const juce::String getName() const override { return "4real-audio"; }
+    const juce::String getName() const override;
+
+    // The guitar this plugin variant sounds like.
+    static const fourreal::GuitarModel& targetModel();
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
@@ -55,6 +61,8 @@ private:
     void parameterChanged (const juce::String& parameterID, float newValue) override;
     void handleAsyncUpdate() override;
     std::vector<float> designTaps() const;
+
+    juce::StringArray voicingParamIds;
 
     juce::SmoothedValue<float> inputGain { 1.0f };
     juce::SmoothedValue<float> outputGain { 1.0f };

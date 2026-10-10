@@ -12,24 +12,47 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        model: [ LP, "335", SG, PRS, RIC, STR, TCR, FLC ]
     steps:
       - uses: actions/checkout@v4
 
       - name: Configure
-        run: cmake -S . -B build -A x64
+        run: cmake -S . -B build -A x64 -DFOURREAL_MODELS="${{ matrix.model }}"
 
       - name: Build VST3 and Standalone
-        run: cmake --build build --config Release --target FourRealAudio_VST3 FourRealAudio_Standalone --parallel
+        run: cmake --build build --config Release --target FourReal_${{ matrix.model }}_VST3 FourReal_${{ matrix.model }}_Standalone --parallel
 
       - name: Collect outputs
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          Copy-Item -Recurse -Force "build/FourRealAudio_artefacts/Release/VST3/*" dist/
-          Copy-Item -Recurse -Force "build/FourRealAudio_artefacts/Release/Standalone/*" dist/
+          Copy-Item -Recurse -Force "build/FourReal_${{ matrix.model }}_artefacts/Release/VST3/*" dist/
+          Copy-Item -Recurse -Force "build/FourReal_${{ matrix.model }}_artefacts/Release/Standalone/*" dist/
           Get-ChildItem -Recurse dist | Select-Object -ExpandProperty FullName
 
       - uses: actions/upload-artifact@v4
         with:
-          name: 4real-audio-windows-x64
+          name: part-${{ matrix.model }}
           path: dist
+          retention-days: 1
+
+  bundle:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: part-*
+          merge-multiple: true
+          path: all
+
+      - name: List
+        run: find all -maxdepth 2 | sort
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 4real-audio-windows-x64
+          path: all

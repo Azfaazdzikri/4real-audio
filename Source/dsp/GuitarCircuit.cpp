@@ -1,4 +1,5 @@
 #include "GuitarCircuit.h"
+#include "GuitarModels.h"
 
 #include <algorithm>
 #include <cmath>
@@ -242,6 +243,60 @@ std::vector<cplx> lesPaulResponse (const std::vector<double>& freqsHz,
 
     if (useNeck) addChannel ("neck", neck, params.volNeck, params.toneNeck);
     if (useBridge) addChannel ("bridge", bridge, params.volBridge, params.toneBridge);
+    addOutput (net, rig);
+    return net.solve (freqsHz, "out");
+}
+
+std::vector<cplx> modelResponse (const std::vector<double>& freqsHz, const GuitarModel& model,
+                                 const ModelSettings& settings, const Rig& rig)
+{
+    const int numPositions = static_cast<int> (model.positions.size());
+    const auto& position = model.positions[static_cast<size_t> (std::clamp (settings.position, 0, numPositions - 1))];
+
+    auto knob = [] (const std::vector<double>& values, size_t i) { return i < values.size() ? values[i] : 10.0; };
+
+    Net net;
+    for (size_t i = 0; i < model.pickups.size(); ++i)
+    {
+        if ((position.pickupMask & (1u << i)) == 0)
+            continue;
+
+        const std::string hot = "hot_" + std::to_string (i);
+        net.pickup (hot, makePickup (model.pickups[i].inductanceH, model.pickups[i].dcrOhm));
+
+        std::string wiper = hot;
+        for (size_t v = 0; v < model.volumes.size(); ++v)
+        {
+            if (model.volumes[v].pickup == static_cast<int> (i))
+            {
+                wiper = "wiper_" + std::to_string (i);
+                addVolume (net, hot, wiper, model.potOhm, knob (settings.volumes, v));
+                break;
+            }
+        }
+        for (size_t t = 0; t < model.tones.size(); ++t)
+            if (model.tones[t].pickup == static_cast<int> (i))
+                addTone (net, hot, model.potOhm, model.toneCapF, knob (settings.tones, t));
+
+        net.resistor (wiper, "bus", 1.0); // closed selector contact
+    }
+
+    for (size_t t = 0; t < model.tones.size(); ++t)
+        if (model.tones[t].pickup < 0 && (model.tones[t].activeMask & position.pickupMask) != 0)
+            addTone (net, "bus", model.potOhm, model.toneCapF, knob (settings.tones, t));
+
+    bool hasMaster = false;
+    for (size_t v = 0; v < model.volumes.size() && ! hasMaster; ++v)
+    {
+        if (model.volumes[v].pickup < 0)
+        {
+            addVolume (net, "bus", "out", model.potOhm, knob (settings.volumes, v));
+            hasMaster = true;
+        }
+    }
+    if (! hasMaster)
+        net.resistor ("bus", "out", 1.0);
+
     addOutput (net, rig);
     return net.solve (freqsHz, "out");
 }

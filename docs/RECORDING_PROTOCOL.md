@@ -78,3 +78,17 @@ nadanya sama. Rekaman seperti itu cocok untuk membandingkan kurva spektrum (suda
 `training/transfer.py`), tetapi tidak cocok untuk melatih neural network dengan cara biasa.
 Pasangan yang benar-benar sejajar hanya didapat kalau dua pickup direkam bersamaan dari gitar yang
 sama (misalnya masing-masing ke satu kanal interface), atau lewat metode pelatihan tanpa pasangan.
+
+## Ukuran file dan struktur folder `Data Training`
+
+Struktur: `<gitar>/<posisi selector>/<Sustain | Palm Mute | Strum>/`. Isi dengan satu file per not.
+
+- **Mono**, bukan stereo. Stereo dengan dua kanal sama persis memakai ruang dua kali lipat.
+- **Sustain:** 6 sampai 8 detik per not (sekitar 1 MB per file di 24-bit/48 kHz).
+- **Palm mute:** 2 sampai 3 detik per not (sekitar 0,4 MB).
+- **Strum senar kosong:** 4 sampai 5 detik per file.
+- Perkiraan: sekitar 0,6 GB per gitar untuk 400 not sustain + 400 not palm mute. Takaran 32 detik per not
+  membuat file sekitar 15 kali lebih besar tanpa menambah informasi pickup.
+- Penamaan yang disarankan: `S6_F00.wav` (senar 6, fret 0), `S1_F12.wav`; strum: `strum_E.wav`, `strum_A.wav`, dst.
+- Cek folder dengan `python training/scan_dataset.py "Data Training"`: menghitung file dan durasi, dan menandai
+  file stereo, sample rate selain 48 kHz, bit depth selain 24, dan take yang terlalu panjang.
