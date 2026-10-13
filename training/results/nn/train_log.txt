@@ -1,0 +1,139 @@
+/content/4real-audio/training/nn/train.py:121: RuntimeWarning: All-NaN slice encountered
+  self.eq_cache[(a, b)] = np.nanmedian(np.array(ds), axis=0) if ds else np.full(64, np.nan)
+device cuda | cells 17 | train keys 332 | test keys 77 | held-out cells []
+parameters: 44945
+[eval @ 0] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 5.70  (462 held-out pairs, 64s)
+    Palm Mute  n=  78  none 8.77  static 8.95  model 8.77
+    Strum      n= 276  none 4.96  static 3.70  model 4.96
+    Sustain    n= 108  none 7.22  static 6.45  model 7.22
+step 200/300 loss 3.174 (stft 1.532, avg-spectrum 1.642) lr 3.35e-04 70s
+[eval @ 300] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 5.70  (462 held-out pairs, 9s)
+    Palm Mute  n=  78  none 8.77  static 8.95  model 8.77
+    Strum      n= 276  none 4.96  static 3.70  model 4.96
+    Sustain    n= 108  none 7.22  static 6.45  model 7.22
+saved /content/nn_test/model.pt
+/content/4real-audio/training/nn/train.py:121: RuntimeWarning: All-NaN slice encountered
+  self.eq_cache[(a, b)] = np.nanmedian(np.array(ds), axis=0) if ds else np.full(64, np.nan)
+device cuda | cells 17 | train keys 332 | test keys 77 | held-out cells []
+parameters: 44945
+[eval @ 0] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 5.70  (462 held-out pairs, 60s)
+    Palm Mute  n=  78  none 8.77  static 8.95  model 8.77
+    Strum      n= 276  none 4.96  static 3.70  model 4.96
+    Sustain    n= 108  none 7.22  static 6.45  model 7.22
+step 200/20000 loss 3.129 (stft 1.536, avg-spectrum 1.592) lr 1.34e-03 73s
+step 400/20000 loss 3.230 (stft 1.514, avg-spectrum 1.717) lr 2.00e-03 145s
+step 600/20000 loss 3.368 (stft 1.857, avg-spectrum 1.511) lr 2.00e-03 217s
+step 800/20000 loss 3.957 (stft 2.110, avg-spectrum 1.848) lr 1.99e-03 290s
+step 1000/20000 loss 3.931 (stft 1.995, avg-spectrum 1.936) lr 1.99e-03 362s
+step 1200/20000 loss 3.793 (stft 2.099, avg-spectrum 1.694) lr 1.98e-03 435s
+step 1400/20000 loss 3.146 (stft 1.799, avg-spectrum 1.347) lr 1.98e-03 507s
+step 1600/20000 loss 3.218 (stft 1.798, avg-spectrum 1.420) lr 1.97e-03 580s
+step 1800/20000 loss 3.073 (stft 1.584, avg-spectrum 1.489) lr 1.96e-03 652s
+step 2000/20000 loss 2.804 (stft 1.525, avg-spectrum 1.279) lr 1.95e-03 724s
+step 2200/20000 loss 2.591 (stft 1.485, avg-spectrum 1.107) lr 1.94e-03 797s
+step 2400/20000 loss 3.825 (stft 2.023, avg-spectrum 1.802) lr 1.93e-03 869s
+step 2600/20000 loss 3.316 (stft 1.718, avg-spectrum 1.598) lr 1.92e-03 941s
+step 2800/20000 loss 3.976 (stft 2.045, avg-spectrum 1.931) lr 1.90e-03 1014s
+step 3000/20000 loss 2.758 (stft 1.525, avg-spectrum 1.233) lr 1.89e-03 1086s
+step 3200/20000 loss 2.877 (stft 1.886, avg-spectrum 0.991) lr 1.88e-03 1159s
+step 3400/20000 loss 3.564 (stft 1.944, avg-spectrum 1.620) lr 1.86e-03 1231s
+step 3600/20000 loss 2.793 (stft 1.682, avg-spectrum 1.111) lr 1.84e-03 1304s
+step 3800/20000 loss 3.407 (stft 1.979, avg-spectrum 1.428) lr 1.83e-03 1376s
+step 4000/20000 loss 3.249 (stft 1.711, avg-spectrum 1.538) lr 1.81e-03 1448s
+step 4200/20000 loss 3.398 (stft 1.602, avg-spectrum 1.796) lr 1.79e-03 1520s
+step 4400/20000 loss 2.647 (stft 1.501, avg-spectrum 1.146) lr 1.77e-03 1593s
+step 4600/20000 loss 2.564 (stft 1.523, avg-spectrum 1.040) lr 1.75e-03 1665s
+step 4800/20000 loss 2.585 (stft 1.566, avg-spectrum 1.019) lr 1.73e-03 1737s
+step 5000/20000 loss 2.883 (stft 1.877, avg-spectrum 1.006) lr 1.71e-03 1810s
+[eval @ 5000] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 5.31  (462 held-out pairs, 9s)
+    Palm Mute  n=  78  none 8.77  static 8.95  model 8.97
+    Strum      n= 276  none 4.96  static 3.70  model 4.56
+    Sustain    n= 108  none 7.22  static 6.45  model 6.84
+step 5200/20000 loss 2.398 (stft 1.482, avg-spectrum 0.916) lr 1.68e-03 1891s
+step 5400/20000 loss 2.555 (stft 1.379, avg-spectrum 1.176) lr 1.66e-03 1963s
+step 5600/20000 loss 2.504 (stft 1.425, avg-spectrum 1.078) lr 1.64e-03 2035s
+step 5800/20000 loss 2.741 (stft 1.541, avg-spectrum 1.199) lr 1.61e-03 2107s
+step 6000/20000 loss 2.951 (stft 1.690, avg-spectrum 1.261) lr 1.59e-03 2180s
+step 6200/20000 loss 2.981 (stft 1.550, avg-spectrum 1.431) lr 1.56e-03 2252s
+step 6400/20000 loss 3.085 (stft 1.635, avg-spectrum 1.450) lr 1.54e-03 2325s
+step 6600/20000 loss 2.719 (stft 1.635, avg-spectrum 1.084) lr 1.51e-03 2397s
+step 6800/20000 loss 2.937 (stft 1.650, avg-spectrum 1.287) lr 1.48e-03 2469s
+step 7000/20000 loss 2.851 (stft 1.914, avg-spectrum 0.937) lr 1.45e-03 2541s
+step 7200/20000 loss 3.214 (stft 1.827, avg-spectrum 1.387) lr 1.43e-03 2613s
+step 7400/20000 loss 2.594 (stft 1.540, avg-spectrum 1.055) lr 1.40e-03 2685s
+step 7600/20000 loss 2.639 (stft 1.546, avg-spectrum 1.092) lr 1.37e-03 2758s
+step 7800/20000 loss 2.295 (stft 1.307, avg-spectrum 0.988) lr 1.34e-03 2830s
+step 8000/20000 loss 2.801 (stft 1.638, avg-spectrum 1.164) lr 1.31e-03 2903s
+step 8200/20000 loss 2.611 (stft 1.499, avg-spectrum 1.113) lr 1.28e-03 2975s
+step 8400/20000 loss 2.861 (stft 1.317, avg-spectrum 1.544) lr 1.25e-03 3047s
+step 8600/20000 loss 2.653 (stft 1.564, avg-spectrum 1.088) lr 1.22e-03 3119s
+step 8800/20000 loss 2.090 (stft 1.251, avg-spectrum 0.839) lr 1.19e-03 3191s
+step 9000/20000 loss 2.564 (stft 1.586, avg-spectrum 0.978) lr 1.16e-03 3263s
+step 9200/20000 loss 2.624 (stft 1.509, avg-spectrum 1.115) lr 1.13e-03 3336s
+step 9400/20000 loss 3.410 (stft 2.156, avg-spectrum 1.255) lr 1.09e-03 3408s
+step 9600/20000 loss 3.013 (stft 1.627, avg-spectrum 1.386) lr 1.06e-03 3480s
+step 9800/20000 loss 2.826 (stft 1.577, avg-spectrum 1.249) lr 1.03e-03 3552s
+step 10000/20000 loss 3.307 (stft 1.859, avg-spectrum 1.448) lr 1.00e-03 3624s
+[eval @ 10000] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 4.91  (462 held-out pairs, 9s)
+    Palm Mute  n=  78  none 8.77  static 8.95  model 9.23
+    Strum      n= 276  none 4.96  static 3.70  model 4.14
+    Sustain    n= 108  none 7.22  static 6.45  model 6.39
+step 10200/20000 loss 2.730 (stft 1.721, avg-spectrum 1.008) lr 9.69e-04 3705s
+step 10400/20000 loss 2.968 (stft 1.440, avg-spectrum 1.528) lr 9.37e-04 3778s
+step 10600/20000 loss 2.413 (stft 1.309, avg-spectrum 1.104) lr 9.06e-04 3850s
+step 10800/20000 loss 2.241 (stft 1.326, avg-spectrum 0.915) lr 8.75e-04 3923s
+step 11000/20000 loss 2.195 (stft 1.275, avg-spectrum 0.920) lr 8.44e-04 3995s
+step 11200/20000 loss 2.516 (stft 1.419, avg-spectrum 1.097) lr 8.13e-04 4067s
+step 11400/20000 loss 2.432 (stft 1.495, avg-spectrum 0.937) lr 7.82e-04 4140s
+step 11600/20000 loss 2.307 (stft 1.442, avg-spectrum 0.866) lr 7.51e-04 4212s
+step 11800/20000 loss 2.677 (stft 1.598, avg-spectrum 1.079) lr 7.21e-04 4285s
+step 12000/20000 loss 2.242 (stft 1.363, avg-spectrum 0.878) lr 6.91e-04 4357s
+step 12200/20000 loss 2.381 (stft 1.383, avg-spectrum 0.997) lr 6.61e-04 4429s
+step 12400/20000 loss 2.999 (stft 1.731, avg-spectrum 1.268) lr 6.32e-04 4502s
+step 12600/20000 loss 2.679 (stft 1.562, avg-spectrum 1.117) lr 6.03e-04 4574s
+step 12800/20000 loss 2.579 (stft 1.588, avg-spectrum 0.991) lr 5.74e-04 4646s
+step 13000/20000 loss 2.649 (stft 1.518, avg-spectrum 1.131) lr 5.46e-04 4719s
+step 13200/20000 loss 2.597 (stft 1.527, avg-spectrum 1.070) lr 5.18e-04 4791s
+step 13400/20000 loss 3.218 (stft 1.787, avg-spectrum 1.431) lr 4.91e-04 4863s
+step 13600/20000 loss 2.667 (stft 1.683, avg-spectrum 0.985) lr 4.64e-04 4936s
+step 13800/20000 loss 2.681 (stft 1.507, avg-spectrum 1.174) lr 4.38e-04 5008s
+step 14000/20000 loss 3.284 (stft 1.679, avg-spectrum 1.604) lr 4.12e-04 5080s
+step 14200/20000 loss 2.500 (stft 1.387, avg-spectrum 1.114) lr 3.87e-04 5153s
+step 14400/20000 loss 3.091 (stft 1.528, avg-spectrum 1.564) lr 3.63e-04 5225s
+step 14600/20000 loss 2.383 (stft 1.368, avg-spectrum 1.014) lr 3.39e-04 5297s
+step 14800/20000 loss 3.527 (stft 1.847, avg-spectrum 1.680) lr 3.15e-04 5370s
+step 15000/20000 loss 2.571 (stft 1.563, avg-spectrum 1.008) lr 2.93e-04 5442s
+[eval @ 15000] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 4.81  (462 held-out pairs, 8s)
+    Palm Mute  n=  78  none 8.77  static 8.95  model 9.23
+    Strum      n= 276  none 4.96  static 3.70  model 4.03
+    Sustain    n= 108  none 7.22  static 6.45  model 6.32
+step 15200/20000 loss 3.139 (stft 1.703, avg-spectrum 1.436) lr 2.71e-04 5522s
+step 15400/20000 loss 2.341 (stft 1.416, avg-spectrum 0.925) lr 2.50e-04 5594s
+step 15600/20000 loss 2.743 (stft 1.677, avg-spectrum 1.066) lr 2.29e-04 5667s
+step 15800/20000 loss 3.106 (stft 1.400, avg-spectrum 1.705) lr 2.10e-04 5739s
+step 16000/20000 loss 2.449 (stft 1.455, avg-spectrum 0.994) lr 1.91e-04 5811s
+step 16200/20000 loss 2.871 (stft 1.677, avg-spectrum 1.194) lr 1.73e-04 5883s
+step 16400/20000 loss 2.853 (stft 1.600, avg-spectrum 1.253) lr 1.56e-04 5955s
+step 16600/20000 loss 2.703 (stft 1.531, avg-spectrum 1.171) lr 1.39e-04 6027s
+step 16800/20000 loss 2.707 (stft 1.711, avg-spectrum 0.996) lr 1.24e-04 6099s
+step 17000/20000 loss 2.679 (stft 1.690, avg-spectrum 0.989) lr 1.09e-04 6171s
+step 17200/20000 loss 2.198 (stft 1.297, avg-spectrum 0.902) lr 9.52e-05 6243s
+step 17400/20000 loss 2.588 (stft 1.431, avg-spectrum 1.157) lr 8.22e-05 6315s
+step 17600/20000 loss 2.595 (stft 1.466, avg-spectrum 1.129) lr 7.02e-05 6387s
+step 17800/20000 loss 2.625 (stft 1.616, avg-spectrum 1.009) lr 5.91e-05 6459s
+step 18000/20000 loss 2.675 (stft 1.564, avg-spectrum 1.112) lr 4.89e-05 6532s
+step 18200/20000 loss 2.448 (stft 1.408, avg-spectrum 1.040) lr 3.97e-05 6604s
+step 18400/20000 loss 2.469 (stft 1.487, avg-spectrum 0.982) lr 3.14e-05 6676s
+step 18600/20000 loss 2.473 (stft 1.537, avg-spectrum 0.936) lr 2.41e-05 6748s
+step 18800/20000 loss 2.132 (stft 1.285, avg-spectrum 0.847) lr 1.77e-05 6820s
+step 19000/20000 loss 2.864 (stft 1.683, avg-spectrum 1.181) lr 1.23e-05 6892s
+step 19200/20000 loss 2.579 (stft 1.467, avg-spectrum 1.112) lr 7.89e-06 6964s
+step 19400/20000 loss 3.004 (stft 1.473, avg-spectrum 1.531) lr 4.44e-06 7037s
+step 19600/20000 loss 2.031 (stft 1.259, avg-spectrum 0.772) lr 1.97e-06 7109s
+step 19800/20000 loss 1.897 (stft 1.159, avg-spectrum 0.738) lr 4.93e-07 7181s
+step 20000/20000 loss 2.528 (stft 1.384, avg-spectrum 1.144) lr 0.00e+00 7253s
+[eval @ 20000] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 4.80  (462 held-out pairs, 9s)
+    Palm Mute  n=  78  none 8.77  static 8.95  model 9.21
+    Strum      n= 276  none 4.96  static 3.70  model 4.02
+    Sustain    n= 108  none 7.22  static 6.45  model 6.31
+saved /content/nn_run/model.pt
