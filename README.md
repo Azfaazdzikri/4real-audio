@@ -23,8 +23,8 @@ Sekarang ada **8 plugin terpisah**, satu per gitar target, dari satu kode dasar:
 | 4real-audio TCR | Telecaster | selector 3, 1 volume, 1 tone |
 | 4real-audio FLC | Gretsch Falcon | selector 3, volume neck, volume bridge, master, 1 tone |
 
-- Suara gitar difilter oleh **selisih dua model fisik elektronika gitar**: gitar sumber (pilih di dropdown:
-  Strat HSS milikmu, atau salah satu gitar di tabel, lalu posisi selector) dan gitar target (plugin ini). Kontrol target
+- Suara gitar difilter oleh **selisih dua model fisik elektronika gitar**: gitar sumber (pilih di dropdown salah satu
+  gitar yang direkam, lalu posisi selector; default Les Paul / Bridge, pendekatan untuk gitar HSS dengan humbucker bridge) dan gitar target (plugin ini). Kontrol target
   bekerja seperti rangkaian aslinya (tone 0 menutup suara tinggi, volume rendah meredam resonansi pickup).
 - Tombol **Voicing on** untuk A/B, dan **Keep level difference** untuk menyertakan atau menghilangkan selisih level.
 - Ini **bukan suara gitar yang sebenarnya**: hanya bagian linear tetap dari pickup dan knob yang ditangkap.
