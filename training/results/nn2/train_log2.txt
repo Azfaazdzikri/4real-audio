@@ -1,0 +1,140 @@
+device cuda | cells 17 | train keys 332 | test keys 77 | held-out cells []
+  static EQ init: source cell 1/17 (41s)
+  static EQ init: source cell 2/17 (41s)
+  static EQ init: source cell 3/17 (42s)
+  static EQ init: source cell 4/17 (42s)
+  static EQ init: source cell 5/17 (43s)
+  static EQ init: source cell 6/17 (43s)
+  static EQ init: source cell 7/17 (44s)
+  static EQ init: source cell 8/17 (45s)
+  static EQ init: source cell 9/17 (45s)
+  static EQ init: source cell 10/17 (46s)
+  static EQ init: source cell 11/17 (46s)
+  static EQ init: source cell 12/17 (47s)
+  static EQ init: source cell 13/17 (47s)
+  static EQ init: source cell 14/17 (48s)
+  static EQ init: source cell 15/17 (49s)
+  static EQ init: source cell 16/17 (50s)
+  static EQ init: source cell 17/17 (51s)
+parameters: 63441 
+[eval @ 0] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 4.50  (462 held-out pairs, 25s)
+    Palm Mute  n=  78  none 8.77  static 8.95  static-per-technique(oracle) 7.95  model 9.09
+    Strum      n= 276  none 4.96  static 3.70  static-per-technique(oracle) 3.71  model 3.67
+    Sustain    n= 108  none 7.22  static 6.45  static-per-technique(oracle) 6.52  model 6.13
+step 200/20000 loss 4.496 (stft 1.757, band-shape dB 3.968) lr 1.34e-03 71s
+step 400/20000 loss 4.591 (stft 1.698, band-shape dB 4.081) lr 2.00e-03 141s
+step 600/20000 loss 5.132 (stft 2.048, band-shape dB 4.518) lr 2.00e-03 213s
+step 800/20000 loss 5.344 (stft 2.274, band-shape dB 4.662) lr 1.99e-03 287s
+step 1000/20000 loss 5.543 (stft 2.221, band-shape dB 4.876) lr 1.99e-03 361s
+step 1200/20000 loss 6.030 (stft 2.118, band-shape dB 5.395) lr 1.98e-03 434s
+step 1400/20000 loss 4.778 (stft 2.061, band-shape dB 4.160) lr 1.98e-03 508s
+step 1600/20000 loss 4.869 (stft 1.877, band-shape dB 4.306) lr 1.97e-03 582s
+step 1800/20000 loss 4.562 (stft 1.844, band-shape dB 4.008) lr 1.96e-03 655s
+step 2000/20000 loss 4.786 (stft 1.710, band-shape dB 4.273) lr 1.95e-03 729s
+step 2200/20000 loss 4.744 (stft 1.551, band-shape dB 4.279) lr 1.94e-03 803s
+step 2400/20000 loss 4.839 (stft 2.159, band-shape dB 4.191) lr 1.93e-03 877s
+step 2600/20000 loss 4.352 (stft 1.917, band-shape dB 3.777) lr 1.92e-03 950s
+step 2800/20000 loss 5.487 (stft 2.177, band-shape dB 4.834) lr 1.90e-03 1024s
+step 3000/20000 loss 4.027 (stft 1.715, band-shape dB 3.512) lr 1.89e-03 1097s
+step 3200/20000 loss 4.877 (stft 2.050, band-shape dB 4.262) lr 1.88e-03 1171s
+step 3400/20000 loss 4.458 (stft 2.158, band-shape dB 3.810) lr 1.86e-03 1244s
+step 3600/20000 loss 4.551 (stft 1.821, band-shape dB 4.004) lr 1.84e-03 1318s
+step 3800/20000 loss 4.668 (stft 2.149, band-shape dB 4.023) lr 1.83e-03 1392s
+step 4000/20000 loss 4.365 (stft 1.874, band-shape dB 3.803) lr 1.81e-03 1465s
+step 4200/20000 loss 3.931 (stft 1.794, band-shape dB 3.393) lr 1.79e-03 1539s
+step 4400/20000 loss 4.392 (stft 1.752, band-shape dB 3.866) lr 1.77e-03 1612s
+step 4600/20000 loss 4.071 (stft 1.700, band-shape dB 3.561) lr 1.75e-03 1686s
+step 4800/20000 loss 3.723 (stft 1.700, band-shape dB 3.213) lr 1.73e-03 1760s
+step 5000/20000 loss 4.703 (stft 1.978, band-shape dB 4.110) lr 1.71e-03 1833s
+[eval @ 5000] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 3.82  (462 held-out pairs, 10s)
+    Palm Mute  n=  78  none 8.77  static 8.95  static-per-technique(oracle) 7.95  model 7.37
+    Strum      n= 276  none 4.96  static 3.70  static-per-technique(oracle) 3.71  model 3.30
+    Sustain    n= 108  none 7.22  static 6.45  static-per-technique(oracle) 6.52  model 4.74
+step 5200/20000 loss 3.982 (stft 1.582, band-shape dB 3.507) lr 1.68e-03 1917s
+step 5400/20000 loss 4.017 (stft 1.509, band-shape dB 3.564) lr 1.66e-03 1990s
+step 5600/20000 loss 3.157 (stft 1.555, band-shape dB 2.691) lr 1.64e-03 2064s
+step 5800/20000 loss 4.383 (stft 1.711, band-shape dB 3.870) lr 1.61e-03 2137s
+step 6000/20000 loss 4.259 (stft 1.879, band-shape dB 3.695) lr 1.59e-03 2211s
+step 6200/20000 loss 5.018 (stft 1.811, band-shape dB 4.474) lr 1.56e-03 2285s
+step 6400/20000 loss 4.471 (stft 1.862, band-shape dB 3.912) lr 1.54e-03 2358s
+step 6600/20000 loss 4.609 (stft 1.853, band-shape dB 4.053) lr 1.51e-03 2432s
+step 6800/20000 loss 4.996 (stft 1.826, band-shape dB 4.448) lr 1.48e-03 2506s
+step 7000/20000 loss 4.675 (stft 2.095, band-shape dB 4.047) lr 1.45e-03 2579s
+step 7200/20000 loss 4.980 (stft 2.000, band-shape dB 4.380) lr 1.43e-03 2653s
+step 7400/20000 loss 4.174 (stft 1.759, band-shape dB 3.647) lr 1.40e-03 2727s
+step 7600/20000 loss 4.993 (stft 1.706, band-shape dB 4.482) lr 1.37e-03 2800s
+step 7800/20000 loss 4.080 (stft 1.595, band-shape dB 3.601) lr 1.34e-03 2874s
+step 8000/20000 loss 4.277 (stft 1.747, band-shape dB 3.753) lr 1.31e-03 2948s
+step 8200/20000 loss 3.544 (stft 1.706, band-shape dB 3.033) lr 1.28e-03 3021s
+step 8400/20000 loss 3.474 (stft 1.528, band-shape dB 3.016) lr 1.25e-03 3095s
+step 8600/20000 loss 4.102 (stft 1.670, band-shape dB 3.601) lr 1.22e-03 3169s
+step 8800/20000 loss 3.450 (stft 1.387, band-shape dB 3.034) lr 1.19e-03 3242s
+step 9000/20000 loss 4.057 (stft 1.812, band-shape dB 3.514) lr 1.16e-03 3316s
+step 9200/20000 loss 4.335 (stft 1.885, band-shape dB 3.769) lr 1.13e-03 3390s
+step 9400/20000 loss 4.767 (stft 2.331, band-shape dB 4.068) lr 1.09e-03 3463s
+step 9600/20000 loss 4.410 (stft 1.773, band-shape dB 3.878) lr 1.06e-03 3537s
+step 9800/20000 loss 4.808 (stft 1.802, band-shape dB 4.267) lr 1.03e-03 3611s
+step 10000/20000 loss 5.080 (stft 2.018, band-shape dB 4.475) lr 1.00e-03 3684s
+[eval @ 10000] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 3.67  (462 held-out pairs, 9s)
+    Palm Mute  n=  78  none 8.77  static 8.95  static-per-technique(oracle) 7.95  model 6.99
+    Strum      n= 276  none 4.96  static 3.70  static-per-technique(oracle) 3.71  model 3.21
+    Sustain    n= 108  none 7.22  static 6.45  static-per-technique(oracle) 6.52  model 4.44
+step 10200/20000 loss 4.202 (stft 1.796, band-shape dB 3.664) lr 9.69e-04 3767s
+step 10400/20000 loss 3.696 (stft 1.699, band-shape dB 3.187) lr 9.37e-04 3841s
+step 10600/20000 loss 3.747 (stft 1.548, band-shape dB 3.282) lr 9.06e-04 3915s
+step 10800/20000 loss 3.783 (stft 1.439, band-shape dB 3.351) lr 8.75e-04 3988s
+step 11000/20000 loss 3.745 (stft 1.353, band-shape dB 3.339) lr 8.44e-04 4062s
+step 11200/20000 loss 4.588 (stft 1.618, band-shape dB 4.103) lr 8.13e-04 4136s
+step 11400/20000 loss 4.219 (stft 1.684, band-shape dB 3.714) lr 7.82e-04 4209s
+step 11600/20000 loss 4.342 (stft 1.671, band-shape dB 3.841) lr 7.51e-04 4283s
+step 11800/20000 loss 3.757 (stft 1.905, band-shape dB 3.185) lr 7.21e-04 4357s
+step 12000/20000 loss 3.446 (stft 1.556, band-shape dB 2.979) lr 6.91e-04 4430s
+step 12200/20000 loss 4.017 (stft 1.595, band-shape dB 3.539) lr 6.61e-04 4504s
+step 12400/20000 loss 4.904 (stft 1.884, band-shape dB 4.339) lr 6.32e-04 4578s
+step 12600/20000 loss 4.550 (stft 1.829, band-shape dB 4.001) lr 6.03e-04 4651s
+step 12800/20000 loss 4.178 (stft 1.767, band-shape dB 3.648) lr 5.74e-04 4725s
+step 13000/20000 loss 4.255 (stft 1.640, band-shape dB 3.763) lr 5.46e-04 4799s
+step 13200/20000 loss 4.289 (stft 1.684, band-shape dB 3.783) lr 5.18e-04 4872s
+step 13400/20000 loss 4.581 (stft 1.996, band-shape dB 3.982) lr 4.91e-04 4946s
+step 13600/20000 loss 4.559 (stft 1.857, band-shape dB 4.001) lr 4.64e-04 5019s
+step 13800/20000 loss 4.139 (stft 1.695, band-shape dB 3.631) lr 4.38e-04 5093s
+step 14000/20000 loss 4.093 (stft 1.919, band-shape dB 3.517) lr 4.12e-04 5167s
+step 14200/20000 loss 3.991 (stft 1.624, band-shape dB 3.504) lr 3.87e-04 5240s
+step 14400/20000 loss 4.438 (stft 1.745, band-shape dB 3.914) lr 3.63e-04 5314s
+step 14600/20000 loss 3.537 (stft 1.556, band-shape dB 3.070) lr 3.39e-04 5388s
+step 14800/20000 loss 4.193 (stft 2.211, band-shape dB 3.530) lr 3.15e-04 5461s
+step 15000/20000 loss 4.155 (stft 1.791, band-shape dB 3.618) lr 2.93e-04 5535s
+[eval @ 15000] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 3.64  (462 held-out pairs, 9s)
+    Palm Mute  n=  78  none 8.77  static 8.95  static-per-technique(oracle) 7.95  model 7.15
+    Strum      n= 276  none 4.96  static 3.70  static-per-technique(oracle) 3.71  model 3.21
+    Sustain    n= 108  none 7.22  static 6.45  static-per-technique(oracle) 6.52  model 4.33
+step 15200/20000 loss 4.696 (stft 1.912, band-shape dB 4.122) lr 2.71e-04 5618s
+step 15400/20000 loss 3.868 (stft 1.622, band-shape dB 3.381) lr 2.50e-04 5692s
+step 15600/20000 loss 3.810 (stft 1.931, band-shape dB 3.230) lr 2.29e-04 5765s
+step 15800/20000 loss 3.865 (stft 1.586, band-shape dB 3.389) lr 2.10e-04 5839s
+step 16000/20000 loss 4.074 (stft 1.650, band-shape dB 3.579) lr 1.91e-04 5913s
+step 16200/20000 loss 4.796 (stft 1.851, band-shape dB 4.241) lr 1.73e-04 5987s
+step 16400/20000 loss 4.267 (stft 1.749, band-shape dB 3.742) lr 1.56e-04 6060s
+step 16600/20000 loss 4.348 (stft 1.685, band-shape dB 3.842) lr 1.39e-04 6134s
+step 16800/20000 loss 4.432 (stft 1.908, band-shape dB 3.860) lr 1.24e-04 6207s
+step 17000/20000 loss 4.147 (stft 1.875, band-shape dB 3.585) lr 1.09e-04 6281s
+step 17200/20000 loss 3.587 (stft 1.430, band-shape dB 3.158) lr 9.52e-05 6355s
+step 17400/20000 loss 3.872 (stft 1.590, band-shape dB 3.395) lr 8.22e-05 6428s
+step 17600/20000 loss 3.884 (stft 1.676, band-shape dB 3.382) lr 7.02e-05 6502s
+step 17800/20000 loss 5.036 (stft 1.767, band-shape dB 4.505) lr 5.91e-05 6576s
+step 18000/20000 loss 4.020 (stft 1.642, band-shape dB 3.528) lr 4.89e-05 6649s
+step 18200/20000 loss 4.480 (stft 1.579, band-shape dB 4.007) lr 3.97e-05 6723s
+step 18400/20000 loss 4.325 (stft 1.683, band-shape dB 3.820) lr 3.14e-05 6797s
+step 18600/20000 loss 4.094 (stft 1.658, band-shape dB 3.596) lr 2.41e-05 6870s
+step 18800/20000 loss 3.233 (stft 1.495, band-shape dB 2.785) lr 1.77e-05 6944s
+step 19000/20000 loss 4.030 (stft 1.884, band-shape dB 3.465) lr 1.23e-05 7017s
+step 19200/20000 loss 3.928 (stft 1.636, band-shape dB 3.437) lr 7.89e-06 7091s
+step 19400/20000 loss 4.153 (stft 1.666, band-shape dB 3.653) lr 4.44e-06 7165s
+step 19600/20000 loss 3.310 (stft 1.474, band-shape dB 2.868) lr 1.97e-06 7238s
+step 19800/20000 loss 3.427 (stft 1.373, band-shape dB 3.016) lr 4.93e-07 7312s
+step 20000/20000 loss 4.578 (stft 1.576, band-shape dB 4.105) lr 0.00e+00 7386s
+[eval @ 20000] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 3.63  (462 held-out pairs, 9s)
+    Palm Mute  n=  78  none 8.77  static 8.95  static-per-technique(oracle) 7.95  model 7.24
+    Strum      n= 276  none 4.96  static 3.70  static-per-technique(oracle) 3.71  model 3.21
+    Sustain    n= 108  none 7.22  static 6.45  static-per-technique(oracle) 6.52  model 4.30
+saved /content/drive/MyDrive/4real_out/run2/model.pt
