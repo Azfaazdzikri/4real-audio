@@ -80,6 +80,7 @@ class GuitarNet(nn.Module):
         super().__init__()
         init = torch.zeros(n_cells, n_cells, N_BANDS) if eq_init is None else torch.as_tensor(eq_init, dtype=torch.float32)
         self.eq = nn.Parameter(init.clone())  # dB per band for (source cell, target cell)
+        self.use_net = True
         self.register_buffer("range_mask", torch.as_tensor(RANGE, dtype=torch.bool))
         self.emb = nn.Embedding(n_cells, emb_dim)
         self.cond = nn.Sequential(nn.Linear(2 * emb_dim, cond_dim), nn.SiLU(),
@@ -103,6 +104,8 @@ class GuitarNet(nn.Module):
 
     def forward(self, x, src, tgt):
         x = self.apply_eq(x, src, tgt)
+        if not self.use_net:  # EQ-only experiment (cheap enough for a CPU)
+            return x
         c = self.cond(torch.cat([self.emb(src), self.emb(tgt)], dim=-1))
         h = self.inp(x / SCALE)
         skip = 0
@@ -249,6 +252,7 @@ def main() -> int:
     ap.add_argument("--eval-every", type=int, default=5000)
     ap.add_argument("--hold-out", nargs="*", default=[], help="cell name fragments never used in training")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--eq-only", action="store_true", help="train only the per-pair EQ (no TCN); runs on a CPU")
     ap.add_argument("--ckpt-every", type=int, default=1000, help="save a resumable checkpoint every N steps")
     args = ap.parse_args()
     warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -264,7 +268,8 @@ def main() -> int:
     evaluator = Evaluator(data, device, np.random.default_rng(123))
     eq_init = evaluator.eq_init(len(data.cells), args.out_dir / "eq_init.npy")
     model = GuitarNet(len(data.cells), ch=args.ch, eq_init=eq_init).to(device)
-    print("parameters:", sum(p.numel() for p in model.parameters()))
+    model.use_net = not args.eq_only
+    print("parameters:", sum(p.numel() for p in model.parameters()), "| EQ only" if args.eq_only else "")
     eq_params = [model.eq]
     other = [p for n_, p in model.named_parameters() if n_ != "eq"]
     opt = torch.optim.AdamW([{"params": other, "lr": args.lr, "weight_decay": 1e-4},
