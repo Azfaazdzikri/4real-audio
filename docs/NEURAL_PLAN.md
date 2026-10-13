@@ -18,3 +18,13 @@ Noise floor antar-take belum diketahui; satu sesi rekam; beberapa file clipping 
 
 ## Integrasi plugin
 Ekspor bobot (JSON) -> inferensi C++ di plugin (cond vector per pasangan sumber/target). Fallback: EQ statis terukur.
+
+## Hasil v1 (20000 langkah, 462 pasangan uji)
+Tanpa perubahan 5.70 dB | EQ statis 4.62 | NN 4.80. NN belum mengalahkan EQ statis (Sustain 6.31 vs 6.45 menang tipis;
+Strum 4.02 vs 3.70 dan Palm Mute 9.21 vs 8.77 kalah). Error mendatar sejak langkah ~15000.
+
+## v2
+- Cabang EQ per pasangan (sumber, target) dengan 64 band, diinisialisasi dari EQ statis terukur -> model mulai di 4.62.
+- Loss utama = metrik penilaian (RMS bentuk spektrum 64 band, 150-8000 Hz); STFT multi-resolusi jadi regulariser (0.3).
+- Laporan baru: EQ statis per teknik (oracle) sebagai batas atas EQ sederhana.
+- Kriteria lolos: model < EQ statis di Semua dan tidak lebih buruk dari "tanpa perubahan" di Palm Mute.
