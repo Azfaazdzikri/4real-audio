@@ -28,3 +28,11 @@ Strum 4.02 vs 3.70 dan Palm Mute 9.21 vs 8.77 kalah). Error mendatar sejak langk
 - Loss utama = metrik penilaian (RMS bentuk spektrum 64 band, 150-8000 Hz); STFT multi-resolusi jadi regulariser (0.3).
 - Laporan baru: EQ statis per teknik (oracle) sebagai batas atas EQ sederhana.
 - Kriteria lolos: model < EQ statis di Semua dan tidak lebih buruk dari "tanpa perubahan" di Palm Mute.
+
+## Keputusan (2026-10-13)
+- Gitar HSS pengguna TIDAK akan direkam; hanya data 8 gitar yang dipakai. Sumber (input) dipilih dari 17 sel yang ada di data,
+  jadi masalah "gitar sumber yang tak terlihat" tidak perlu diselesaikan dengan encoder.
+- Gitar HSS pengguna sudah dimodifikasi (pot 500k, kapasitor tone 0.022 uF = sama dengan asumsi Les Paul).
+  Untuk tes dipakai pickup humbucker bridge, dengan sumber = "Les Paul Bridge Humbucker".
+  Ini pendekatan: bodi, skala, dan pickup tidak identik dengan Les Paul, jadi hasilnya pendekatan, bukan pencocokan tepat.
+- Format model: .ngm (Neural Guitar Modeler), dimodifikasi dari .nam: JSON berisi konfigurasi arsitektur, bobot, metadata (target, sel/posisi, sample rate, kalibrasi level).
