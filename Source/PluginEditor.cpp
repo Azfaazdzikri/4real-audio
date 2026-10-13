@@ -64,7 +64,7 @@ FourRealAudioEditor::FourRealAudioEditor (FourRealAudioProcessor& p)
     }
     setupKnob (outputKnob, "outputGain", "OUTPUT", true);
 
-    styleLabel (sourceHeader, "MY GUITAR (SOURCE)", juce::Justification::centredLeft);
+    styleLabel (sourceHeader, "MY GUITAR (SOURCE) - pick the closest recorded guitar", juce::Justification::centredLeft);
     styleLabel (targetHeader, juce::String ("SOUND LIKE: ") + juce::String (target.displayName).toUpperCase(),
                 juce::Justification::centredLeft);
     addAndMakeVisible (sourceHeader);
@@ -76,6 +76,7 @@ FourRealAudioEditor::FourRealAudioEditor (FourRealAudioProcessor& p)
     setupToggle (voicingToggle, "voicing", "Voicing on");
     setupToggle (keepLevelToggle, "keepLevel", "Keep level difference");
     refreshSourcePositions();
+    targetSelector.box.setEnabled (target.positions.size() > 1); // only one recorded position: nothing to choose
 
     setSize (880, 470);
     startTimerHz (30);
@@ -86,7 +87,7 @@ FourRealAudioEditor::~FourRealAudioEditor()
     stopTimer();
 }
 
-// The selector positions depend on which source guitar is chosen (3-way vs 5-way).
+// The selector positions depend on which source guitar is chosen: only the positions that were recorded.
 void FourRealAudioEditor::refreshSourcePositions()
 {
     const auto& models = fourreal::allModels();
@@ -136,7 +137,7 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
 
     g.setColour (juce::Colours::white.withAlpha (0.5f));
     g.setFont (juce::Font (juce::FontOptions (13.0f)));
-    g.drawText ("guitar tone transformer  -  v0.3 test build (physical model of pickups and knobs, no neural model yet)",
+    g.drawText ("guitar tone transformer  -  v0.4 test build (positions match the recorded data, no neural model yet)",
                 24, 44, getWidth() - 48, 18, juce::Justification::centredLeft);
 
     auto drawMeter = [&g, this] (juce::Rectangle<int> r, float level, const juce::String& name)

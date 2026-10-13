@@ -66,7 +66,9 @@ struct ModelSettings
     std::vector<double> tones;      // 0..10 per ToneDef (missing entries = 10)
 };
 
-// All known guitars. The first entry (Strat HSS) is the default source guitar.
+// The 8 recorded guitars (17 guitar + pickup-position cells in the training data). Positions that were not
+// recorded are not listed. The first entry (Les Paul) is the default source guitar: a humbucker-bridge guitar
+// with 500k pots and a 22 nF tone cap is approximated as "Les Paul / Bridge".
 const std::vector<GuitarModel>& allModels();
 
 // Finds a model by plugin code ("LP", ...). Returns nullptr if there is none.

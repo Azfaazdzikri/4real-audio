@@ -63,7 +63,20 @@ int main()
     // --- Generic model registry ---------------------------------------------------------------
     {
         const auto& models = allModels();
-        check (models.size() == 9, "registry has the source guitar plus 8 plugin targets");
+        check (models.size() == 8, "registry has the 8 recorded guitars");
+
+        // Selector positions must match what was recorded in the training data (17 cells in total).
+        const std::vector<std::pair<std::string, size_t>> recorded { { "LP", 3 }, { "335", 1 }, { "SG", 2 }, { "PRS", 3 },
+                                                                      { "RIC", 1 }, { "STR", 4 }, { "TCR", 2 }, { "FLC", 1 } };
+        size_t cells = 0;
+        for (const auto& [code, count] : recorded)
+        {
+            const auto* m = findModelByCode (code);
+            check (m != nullptr && m->positions.size() == count, "recorded positions for " + code);
+            cells += m != nullptr ? m->positions.size() : 0;
+        }
+        check (cells == 17, "17 recorded guitar + pickup-position cells");
+        check (std::string (models.front().code) == "LP", "default source guitar is the Les Paul");
 
         const std::vector<std::string> codes { "LP", "335", "SG", "PRS", "RIC", "STR", "TCR", "FLC" };
         for (const auto& code : codes)
@@ -79,19 +92,16 @@ int main()
         };
         const auto* strat = findModelByCode ("STR");
         const auto* lp = findModelByCode ("LP");
-        const GuitarModel* hss = nullptr;
-        for (const auto& m : models) if (std::string (m.id) == "strat-hss") hss = &m;
-        check (strat && lp && hss, "STR, LP and HSS models found");
+        check (strat && lp, "STR and LP models found");
 
-        double worstStrat = 0.0, worstHss = 0.0, worstLp = 0.0;
-        for (int pos = 0; pos < 5; ++pos)
+        double worstStrat = 0.0, worstLp = 0.0;
+        for (int i = 0; i < (int) strat->positions.size(); ++i)
         {
-            const double vol = pos % 2 ? 6.0 : 10.0, tn = pos == 3 ? 2.0 : 10.0, tm = pos == 1 ? 3.0 : 10.0;
-            ModelSettings st; st.position = pos; st.volumes = { vol }; st.tones = { tn, tm };
+            const int legacyPos = strat->positions[(size_t) i].name[0] - '0'; // names start with the real 1..5 number
+            const double vol = i % 2 ? 6.0 : 10.0, tn = i == 2 ? 2.0 : 10.0, tm = i == 1 ? 3.0 : 10.0;
+            ModelSettings st; st.position = i; st.volumes = { vol }; st.tones = { tn, tm };
             worstStrat = std::max (worstStrat, maxDiffDb (modelResponse (testFreqs, *strat, st),
-                                   stratResponse (testFreqs, StratKind::SSS, { pos + 1, vol, tn, tm })));
-            worstHss = std::max (worstHss, maxDiffDb (modelResponse (testFreqs, *hss, st),
-                                 stratResponse (testFreqs, StratKind::HSS, { pos + 1, vol, tn, tm })));
+                                   stratResponse (testFreqs, StratKind::SSS, { legacyPos, vol, tn, tm })));
         }
         const LesPaulSelector legacySel[3] = { LesPaulSelector::Bridge, LesPaulSelector::Both, LesPaulSelector::Neck };
         for (int pos = 0; pos < 3; ++pos)
@@ -100,8 +110,8 @@ int main()
             worstLp = std::max (worstLp, maxDiffDb (modelResponse (testFreqs, *lp, st),
                                 lesPaulResponse (testFreqs, { legacySel[pos], 6.0, 9.0, 2.0, 7.0 })));
         }
-        std::printf("generic vs legacy: STR %.4f dB, HSS %.4f dB, LP %.4f dB\n", worstStrat, worstHss, worstLp);
-        check (worstStrat < 0.05 && worstHss < 0.05 && worstLp < 0.05,
+        std::printf("generic vs legacy: STR %.4f dB, LP %.4f dB\n", worstStrat, worstLp);
+        check (worstStrat < 0.05 && worstLp < 0.05,
                "generic model solver matches the legacy Strat and Les Paul circuits (<0.05 dB)");
 
         // Sanity checks on every model and every selector position.

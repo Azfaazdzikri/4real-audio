@@ -8,7 +8,7 @@ Outputnya tetap **clean** (tanpa amp/cab/pedal), jadi ditaruh sebelum AmpliTube 
 Input gitar -> UADx 1176 -> [ 4real-audio ] -> AmpliTube 5 -> ...
 ```
 
-## Status: v0.3 (test build, tanpa neural network)
+## Status: v0.4 (test build, tanpa neural network; posisi selector sesuai data rekaman)
 
 Sekarang ada **8 plugin terpisah**, satu per gitar target, dari satu kode dasar:
 

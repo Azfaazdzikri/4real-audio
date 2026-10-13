@@ -14,7 +14,6 @@ dan kapasitor tone dari gitar yang direkam, lalu ganti angka di `Source/dsp/Guit
 | STR | bridge 2,6 H / 6,6k; tengah 2,3 H / 5,9k; neck 2,2 H / 5,8k | 250k | 22 nF | 1 volume; tone neck, tone tengah |
 | TCR | bridge 2,8 H / 7,6k; neck 2,5 H / 6,8k | 250k | 47 nF | 1 volume, 1 tone |
 | FLC | bridge 3,0 H / 4,9k; neck 2,8 H / 4,6k (Filter'Tron) | 500k | 22 nF | volume neck, volume bridge, master, 1 tone |
-| Strat HSS (sumber) | bridge humbucker 4,0 H / 9,0k; tengah 2,3 H / 5,9k; neck 2,2 H / 5,8k | 250k | 22 nF | 1 volume, 2 tone |
 
 Yang belum dimodelkan: saklar tone tiga posisi Gretsch, coil split, wiring khusus, kabel gitar yang berbeda
 (default 500 pF). Efek bodi, kayu, senar, dan posisi pickup yang bergantung nada tidak ada di model fisik ini;
@@ -22,3 +21,22 @@ itu tugas tahap neural network.
 
 Folder `Data Training` yang kamu kirim cocok dengan model ini: LP, 335, SG, PRS, RIC, STR, TCR, FLC. Jazzmaster
 tidak ada di folder, jadi belum dibuat.
+
+
+## Posisi selector yang tersedia (sama dengan data rekaman)
+
+Daftar posisi di plugin hanya berisi posisi yang direkam di Data Training (17 sel). Sumber dan target memakai daftar yang sama.
+
+| Gitar | Posisi yang ada di data |
+|---|---|
+| Les Paul (LP) | Bridge, Middle, Neck |
+| ES-335 (335) | Neck |
+| SG | Bridge, Neck |
+| PRS SE Custom 24 (PRS) | Bridge, Middle, Neck |
+| Rickenbacker 330 (RIC) | Bridge |
+| Stratocaster SSS (STR) | 1 Bridge, 2 Bridge+Middle, 4 Middle+Neck, 5 Neck (posisi 3 Middle tidak direkam) |
+| Telecaster (TCR) | Bridge, Neck |
+| Gretsch Falcon (FLC) | Middle (kedua pickup) |
+
+Sumber default: Les Paul / Bridge. Gitar Strat-HSS milik pengguna (humbucker bridge, pot 500k, kapasitor 0,022 uF) didekati sebagai "Les Paul / Bridge".
+Entri sumber "Strat HSS (my guitar)" dihapus karena tidak ada datanya.
