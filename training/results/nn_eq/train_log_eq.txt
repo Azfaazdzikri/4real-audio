@@ -1,0 +1,60 @@
+device cpu | cells 17 | train keys 332 | test keys 77 | held-out cells []
+  static EQ init: source cell 1/17 (70s)
+  static EQ init: source cell 2/17 (71s)
+  static EQ init: source cell 3/17 (72s)
+  static EQ init: source cell 4/17 (73s)
+  static EQ init: source cell 5/17 (74s)
+  static EQ init: source cell 6/17 (75s)
+  static EQ init: source cell 7/17 (75s)
+  static EQ init: source cell 8/17 (76s)
+  static EQ init: source cell 9/17 (77s)
+  static EQ init: source cell 10/17 (77s)
+  static EQ init: source cell 11/17 (78s)
+  static EQ init: source cell 12/17 (78s)
+  static EQ init: source cell 13/17 (79s)
+  static EQ init: source cell 14/17 (80s)
+  static EQ init: source cell 15/17 (80s)
+  static EQ init: source cell 16/17 (81s)
+  static EQ init: source cell 17/17 (82s)
+parameters: 63441 | EQ only
+[eval @ 0] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 4.50  (462 held-out pairs, 20s)
+    Palm Mute  n=  78  none 8.77  static 8.95  static-per-technique(oracle) 7.95  model 9.09
+    Strum      n= 276  none 4.96  static 3.70  static-per-technique(oracle) 3.71  model 3.67
+    Sustain    n= 108  none 7.22  static 6.45  static-per-technique(oracle) 6.52  model 6.13
+step 200/4000 loss 5.813 (stft 2.060, band-shape dB 5.196) lr 1.33e-03 101s
+step 400/4000 loss 4.657 (stft 1.512, band-shape dB 4.204) lr 1.95e-03 200s
+step 600/4000 loss 5.750 (stft 2.146, band-shape dB 5.106) lr 1.89e-03 293s
+step 800/4000 loss 5.023 (stft 1.516, band-shape dB 4.568) lr 1.81e-03 384s
+step 1000/4000 loss 3.317 (stft 1.554, band-shape dB 2.851) lr 1.71e-03 479s
+[eval @ 1000] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 4.51  (462 held-out pairs, 8s)
+    Palm Mute  n=  78  none 8.77  static 8.95  static-per-technique(oracle) 7.95  model 9.09
+    Strum      n= 276  none 4.96  static 3.70  static-per-technique(oracle) 3.71  model 3.67
+    Sustain    n= 108  none 7.22  static 6.45  static-per-technique(oracle) 6.52  model 6.13
+step 1200/4000 loss 5.834 (stft 1.979, band-shape dB 5.240) lr 1.59e-03 581s
+step 1400/4000 loss 5.371 (stft 1.530, band-shape dB 4.912) lr 1.45e-03 673s
+step 1600/4000 loss 5.361 (stft 2.120, band-shape dB 4.725) lr 1.31e-03 768s
+step 1800/4000 loss 4.890 (stft 1.515, band-shape dB 4.436) lr 1.16e-03 862s
+step 2000/4000 loss 6.826 (stft 2.435, band-shape dB 6.096) lr 1.00e-03 946s
+[eval @ 2000] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 4.50  (462 held-out pairs, 8s)
+    Palm Mute  n=  78  none 8.77  static 8.95  static-per-technique(oracle) 7.95  model 9.09
+    Strum      n= 276  none 4.96  static 3.70  static-per-technique(oracle) 3.71  model 3.67
+    Sustain    n= 108  none 7.22  static 6.45  static-per-technique(oracle) 6.52  model 6.13
+step 2200/4000 loss 3.894 (stft 1.583, band-shape dB 3.419) lr 8.44e-04 1050s
+step 2400/4000 loss 8.167 (stft 2.475, band-shape dB 7.425) lr 6.91e-04 1144s
+step 2600/4000 loss 4.697 (stft 1.509, band-shape dB 4.244) lr 5.46e-04 1239s
+step 2800/4000 loss 6.628 (stft 1.977, band-shape dB 6.035) lr 4.12e-04 1334s
+step 3000/4000 loss 4.136 (stft 1.501, band-shape dB 3.686) lr 2.93e-04 1423s
+[eval @ 3000] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 4.50  (462 held-out pairs, 7s)
+    Palm Mute  n=  78  none 8.77  static 8.95  static-per-technique(oracle) 7.95  model 9.08
+    Strum      n= 276  none 4.96  static 3.70  static-per-technique(oracle) 3.71  model 3.67
+    Sustain    n= 108  none 7.22  static 6.45  static-per-technique(oracle) 6.52  model 6.13
+step 3200/4000 loss 5.013 (stft 1.579, band-shape dB 4.539) lr 1.91e-04 1515s
+step 3400/4000 loss 4.806 (stft 1.719, band-shape dB 4.290) lr 1.09e-04 1611s
+step 3600/4000 loss 4.974 (stft 1.832, band-shape dB 4.425) lr 4.89e-05 1702s
+step 3800/4000 loss 4.117 (stft 1.690, band-shape dB 3.610) lr 1.23e-05 1793s
+step 4000/4000 loss 5.746 (stft 1.701, band-shape dB 5.236) lr 0.00e+00 1886s
+[eval @ 4000] shape error dB (lower is better): no change 5.70 | static EQ 4.62 | model 4.50  (462 held-out pairs, 9s)
+    Palm Mute  n=  78  none 8.77  static 8.95  static-per-technique(oracle) 7.95  model 9.08
+    Strum      n= 276  none 4.96  static 3.70  static-per-technique(oracle) 3.71  model 3.67
+    Sustain    n= 108  none 7.22  static 6.45  static-per-technique(oracle) 6.52  model 6.13
+saved /content/drive/MyDrive/4real_nn/run_eq/model.pt
