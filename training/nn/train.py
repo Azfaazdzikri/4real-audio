@@ -14,8 +14,10 @@ Needs torch (Colab has it) and numpy.
 import argparse
 import json
 import math
+import os
 import sys
 import time
+import warnings
 from pathlib import Path
 
 import numpy as np
@@ -247,7 +249,9 @@ def main() -> int:
     ap.add_argument("--eval-every", type=int, default=5000)
     ap.add_argument("--hold-out", nargs="*", default=[], help="cell name fragments never used in training")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--ckpt-every", type=int, default=1000, help="save a resumable checkpoint every N steps")
     args = ap.parse_args()
+    warnings.filterwarnings("ignore", category=RuntimeWarning)
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     torch.manual_seed(args.seed)
@@ -270,6 +274,23 @@ def main() -> int:
         opt, lambda s: min(1.0, (s + 1) / warmup) * 0.5 * (1 + math.cos(math.pi * min(1.0, s / args.steps))))
 
     history = []
+    start_step = 0
+    ckpt_path = args.out_dir / "ckpt.pt"
+    if ckpt_path.exists():  # resume after a disconnect
+        ck = torch.load(ckpt_path, map_location=device)
+        model.load_state_dict(ck["model"])
+        opt.load_state_dict(ck["opt"])
+        sched.load_state_dict(ck["sched"])
+        start_step = ck["step"]
+        history = ck.get("history", [])
+        rng = np.random.default_rng(args.seed + start_step)
+        print(f"RESUMING from step {start_step}", flush=True)
+
+    def save_ckpt(step):
+        tmp = args.out_dir / "ckpt.tmp"
+        torch.save({"model": model.state_dict(), "opt": opt.state_dict(), "sched": sched.state_dict(),
+                    "step": step, "history": history, "cells": data.cells, "ch": args.ch}, tmp)
+        os.replace(tmp, ckpt_path)
 
     def do_eval(step):
         t0 = time.time()
@@ -283,9 +304,9 @@ def main() -> int:
                   f"  static-per-technique(oracle) {v['static_tech']:.2f}  model {v['model']:.2f}")
         (args.out_dir / "results.json").write_text(json.dumps(history, indent=1), encoding="utf-8")
 
-    do_eval(0)  # model starts at the measured static EQ, so it must score like "static EQ" here
+    do_eval(start_step)  # fresh run: model starts at the measured static EQ, so it must score like "static EQ" here
     t_start = time.time()
-    for step in range(1, args.steps + 1):
+    for step in range(start_step + 1, args.steps + 1):
         x, y, a, b = data.sample(args.batch, args.clip, rng)
         x, y = torch.from_numpy(x)[:, None].to(device), torch.from_numpy(y)[:, None].to(device)
         a, b = torch.from_numpy(a).to(device), torch.from_numpy(b).to(device)
@@ -299,6 +320,8 @@ def main() -> int:
         if step % 200 == 0:
             print(f"step {step}/{args.steps} loss {loss.item():.3f} (stft {mr:.3f}, band-shape dB {band:.3f}) "
                   f"lr {sched.get_last_lr()[0]:.2e} {time.time() - t_start:.0f}s")
+        if step % args.ckpt_every == 0:
+            save_ckpt(step)
         if step % args.eval_every == 0 and step != args.steps:
             do_eval(step)
             torch.save({"state": model.state_dict(), "cells": data.cells, "ch": args.ch, "step": step},
