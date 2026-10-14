@@ -21,13 +21,14 @@ struct Json
     std::string text;
     std::vector<double> nums;                       // numeric array
     std::vector<Json> items;                        // non-numeric array
-    std::vector<std::pair<std::string, Json>> members;
+    std::vector<std::string> keys;                  // object member names
+    std::vector<Json> values;                       // object member values (same order as keys)
 
     const Json* find (const char* key) const
     {
-        for (const auto& m : members)
-            if (m.first == key)
-                return &m.second;
+        for (size_t i = 0; i < keys.size(); ++i)
+            if (keys[i] == key)
+                return &values[i];
         return nullptr;
     }
     const Json& at (const char* key) const
@@ -132,7 +133,8 @@ private:
                 skipWs();
                 std::string key = string();
                 expect (':');
-                v.members.emplace_back (std::move (key), value (depth + 1));
+                v.keys.push_back (std::move (key));
+                v.values.push_back (value (depth + 1));
                 skipWs();
                 if (p_ < end_ && *p_ == ',') { ++p_; continue; }
                 expect ('}');

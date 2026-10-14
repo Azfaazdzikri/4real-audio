@@ -74,7 +74,8 @@ FourRealAudioEditor::FourRealAudioEditor (FourRealAudioProcessor& p)
     setupChoice (sourcePosition, "srcPos", "");
     setupChoice (targetSelector, "tgtSel", "");
     setupToggle (voicingToggle, "voicing", "Voicing on");
-    setupToggle (keepLevelToggle, "keepLevel", "Keep level difference");
+    setupToggle (keepLevelToggle, "keepLevel", "Volume knob changes level");
+    setupToggle (autoLevelToggle, "autoLevel", "Auto level (recommended)");
     refreshSourcePositions();
     targetSelector.box.setEnabled (target.positions.size() > 1); // only one recorded position: nothing to choose
 
@@ -137,7 +138,7 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
 
     g.setColour (juce::Colours::white.withAlpha (0.5f));
     g.setFont (juce::Font (juce::FontOptions (13.0f)));
-    g.drawText ("guitar tone transformer  -  v0.4 test build (positions match the recorded data, no neural model yet)",
+    g.drawText ("guitar tone transformer  -  v0.5 test build (neural network)",
                 24, 44, getWidth() - 48, 18, juce::Justification::centredLeft);
 
     auto drawMeter = [&g, this] (juce::Rectangle<int> r, float level, const juce::String& name)
@@ -156,6 +157,19 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
         g.drawText (name, r.reduced (6, 0), juce::Justification::centredLeft);
     };
 
+    // The network was trained on 48 kHz audio. At other rates the EQ stage is still exact, only the neural detail is approximate.
+    const double sr = audioProcessor.hostSampleRate.load();
+    if (std::abs (sr - 48000.0) > 1.0 || ! audioProcessor.neuralModelLoaded())
+    {
+        g.setColour (juce::Colour (0xffffb347));
+        g.setFont (juce::Font (juce::FontOptions (12.0f)));
+        g.drawText (audioProcessor.neuralModelLoaded()
+                        ? juce::String ("Sample rate is ") + juce::String (sr / 1000.0, 1)
+                              + " kHz: the neural stage was trained at 48 kHz, set the project to 48 kHz for best accuracy"
+                        : juce::String ("Neural model failed to load"),
+                    24, getHeight() - 74, getWidth() - 48, 16, juce::Justification::centredLeft);
+    }
+
     auto m = meterArea;
     drawMeter (m.removeFromTop (18), inputLevel, "IN");
     m.removeFromTop (4);
@@ -171,7 +185,7 @@ void FourRealAudioEditor::resized()
     area.removeFromBottom (10);
 
     // Row of choices: source (guitar + position), target selector, toggles.
-    auto top = area.removeFromTop (74);
+    auto top = area.removeFromTop (84);
     auto sourceArea = top.removeFromLeft (420);
     top.removeFromLeft (20);
     auto targetArea = top.removeFromLeft (210);
@@ -188,6 +202,7 @@ void FourRealAudioEditor::resized()
 
     voicingToggle.button.setBounds (toggleArea.removeFromTop (26));
     keepLevelToggle.button.setBounds (toggleArea.removeFromTop (26));
+    autoLevelToggle.button.setBounds (toggleArea.removeFromTop (26));
 
     area.removeFromTop (14);
 

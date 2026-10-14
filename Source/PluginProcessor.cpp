@@ -1,6 +1,10 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
+#include <NgmData.h>
+
+#include <cstring>
+
 namespace
 {
     // Plugin variant, chosen by the compile definition FOURREAL_MODEL_<CODE> (see CMakeLists.txt).
@@ -76,6 +80,15 @@ FourRealAudioProcessor::FourRealAudioProcessor()
                           .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "STATE", createLayout())
 {
+    {
+        std::string error;
+        ngmLoaded = fourreal::NgmModel::load (NgmData::model_ngm, static_cast<size_t> (NgmData::model_ngmSize), ngm, error);
+        jassert (ngmLoaded); // the embedded .ngm must always parse
+        if (ngmLoaded)
+            for (auto& st : stream)
+                st.prepare (ngm);
+    }
+
     const auto& target = targetModel();
     voicingParamIds = { "voicing", "keepLevel", "srcGuitar", "srcPos", "tgtSel" };
     for (size_t i = 0; i < target.volumes.size(); ++i)
@@ -111,6 +124,7 @@ juce::AudioProcessorValueTreeState::ParameterLayout FourRealAudioProcessor::crea
 
     params.push_back (std::make_unique<AudioParameterBool> (ParameterID { "voicing", 1 }, "Voicing", true));
     params.push_back (std::make_unique<AudioParameterBool> (ParameterID { "keepLevel", 1 }, "Keep level difference", true));
+    params.push_back (std::make_unique<AudioParameterBool> (ParameterID { "autoLevel", 1 }, "Auto level", true));
 
     StringArray sourceNames;
     for (const auto& m : fourreal::allModels())
@@ -141,35 +155,52 @@ juce::AudioProcessorValueTreeState::ParameterLayout FourRealAudioProcessor::crea
     return { params.begin(), params.end() };
 }
 
-std::vector<float> FourRealAudioProcessor::designTaps() const
+int FourRealAudioProcessor::sourceIndexFor (int guitar, int position) const
+{
+    const auto& models = fourreal::allModels();
+    const auto& g = models[static_cast<size_t> (juce::jlimit (0, (int) models.size() - 1, guitar))];
+    const int pos = juce::jlimit (0, (int) g.positions.size() - 1, position);
+    const int idx = ngmLoaded ? ngm.findSource (g.code, pos) : -1;
+    jassert (idx >= 0);
+    return idx >= 0 ? idx : 0;
+}
+
+FourRealAudioProcessor::Taps FourRealAudioProcessor::designTaps() const
 {
     auto get = [this] (const char* id) { return apvts.getRawParameterValue (id)->load(); };
-
-    if (get ("voicing") < 0.5f)
-        return fourreal::identityTaps();
-
     using namespace fourreal;
+
+    Taps taps;
+    const int tgtSel = static_cast<int> (get ("tgtSel") + 0.5f);
+    const int target = juce::jlimit (0, juce::jmax (0, ngm.numTargets - 1), tgtSel);
+
+    // 1) per-pair EQ from the .ngm
+    if (ngmLoaded)
+        taps.eq = designEqTaps (ngm, target, sourceIndexFor (static_cast<int> (get ("srcGuitar") + 0.5f),
+                                                              static_cast<int> (get ("srcPos") + 0.5f)),
+                                currentSampleRate);
+    else
+        taps.eq = identityTaps();
+
+    // 2) volume / tone knobs of the target guitar: physical model, "knobs now" relative to "knobs full"
+    //    (the network was trained with the knobs full, so at full knobs this is the identity).
     const auto grid = makeFrequencyGrid (currentSampleRate);
-
-    const auto& models = allModels();
-    const auto& sourceModel = models[static_cast<size_t> (juce::jlimit (0, (int) models.size() - 1,
-                                                                        static_cast<int> (get ("srcGuitar") + 0.5f)))];
-    ModelSettings source;
-    source.position = juce::jlimit (0, (int) sourceModel.positions.size() - 1,
-                                    static_cast<int> (get ("srcPos") + 0.5f));
-
     const auto& targetDef = targetModel();
-    ModelSettings target;
-    target.position = juce::jlimit (0, (int) targetDef.positions.size() - 1,
-                                    static_cast<int> (get ("tgtSel") + 0.5f));
+    ModelSettings full, now;
+    full.position = now.position = juce::jlimit (0, (int) targetDef.positions.size() - 1, tgtSel);
     for (size_t i = 0; i < targetDef.volumes.size(); ++i)
-        target.volumes.push_back (get (volId (i).toRawUTF8()));
+    {
+        full.volumes.push_back (10.0);
+        now.volumes.push_back (get (volId (i).toRawUTF8()));
+    }
     for (size_t i = 0; i < targetDef.tones.size(); ++i)
-        target.tones.push_back (get (toneId (i).toRawUTF8()));
-
-    return designVoicingTaps (modelResponse (grid, sourceModel, source),
-                              modelResponse (grid, targetDef, target),
-                              grid, currentSampleRate, get ("keepLevel") > 0.5f);
+    {
+        full.tones.push_back (10.0);
+        now.tones.push_back (get (toneId (i).toRawUTF8()));
+    }
+    taps.knobs = designVoicingTaps (modelResponse (grid, targetDef, full), modelResponse (grid, targetDef, now),
+                                    grid, currentSampleRate, get ("keepLevel") > 0.5f);
+    return taps;
 }
 
 void FourRealAudioProcessor::parameterChanged (const juce::String&, float)
@@ -190,6 +221,7 @@ void FourRealAudioProcessor::handleAsyncUpdate()
 void FourRealAudioProcessor::prepareToPlay (double sampleRate, int /*samplesPerBlock*/)
 {
     currentSampleRate = sampleRate;
+    hostSampleRate.store (sampleRate);
 
     inputGain.reset (sampleRate, 0.02);
     outputGain.reset (sampleRate, 0.02);
@@ -198,7 +230,25 @@ void FourRealAudioProcessor::prepareToPlay (double sampleRate, int /*samplesPerB
     outputGain.setCurrentAndTargetValue (
         juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("outputGain")->load()));
 
-    voicing.prepare (2, fourreal::kVoicingTaps, 1024);
+    const bool on = apvts.getRawParameterValue ("voicing")->load() > 0.5f;
+    wetMix.reset (sampleRate, 0.03);
+    wetMix.setCurrentAndTargetValue (on ? 1.0f : 0.0f);
+
+    eqFir.prepare (2, fourreal::kVoicingTaps, kSlice);
+    knobFir.prepare (2, fourreal::kVoicingTaps, kSlice);
+    for (int c = 0; c < 2; ++c)
+    {
+        work[c].assign (static_cast<size_t> (kSlice), 0.0f);
+        dry[c].assign (static_cast<size_t> (kSlice), 0.0f);
+    }
+
+    if (ngmLoaded)
+        for (auto& st : stream)
+            st.reset();
+    activeTarget = activeSource = -1;
+    levelPower = -1.0f;
+    autoGain = 1.0f;
+
     {
         const juce::SpinLock::ScopedLockType lock (tapsLock);
         pendingTaps = designTaps();
@@ -233,7 +283,8 @@ void FourRealAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         const juce::SpinLock::ScopedTryLockType lock (tapsLock);
         if (lock.isLocked())
         {
-            voicing.setTaps (pendingTaps.data());
+            eqFir.setTaps (pendingTaps.eq.data());
+            knobFir.setTaps (pendingTaps.knobs.data());
             tapsReady.store (false);
         }
     }
@@ -242,16 +293,126 @@ void FourRealAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("inputGain")->load()));
     outputGain.setTargetValue (
         juce::Decibels::decibelsToGain (apvts.getRawParameterValue ("outputGain")->load()));
+    wetMix.setTargetValue (apvts.getRawParameterValue ("voicing")->load() > 0.5f ? 1.0f : 0.0f);
 
     applySmoothedGain (buffer, inputGain);
 
-    // Source-guitar -> target-guitar voicing (physical model; neural stage comes later).
-    voicing.process (buffer.getArrayOfWritePointers(), juce::jmin (buffer.getNumChannels(), 2),
-                     buffer.getNumSamples());
+    const int numChannels = juce::jmin (buffer.getNumChannels(), 2);
+    float* const* data = buffer.getArrayOfWritePointers();
+    for (int done = 0; done < buffer.getNumSamples(); done += kSlice)
+    {
+        float* ptrs[2] = { data[0] + done, numChannels > 1 ? data[1] + done : nullptr };
+        processSlice (ptrs, numChannels, juce::jmin (kSlice, buffer.getNumSamples() - done));
+    }
 
     applySmoothedGain (buffer, outputGain);
 
     outputPeak.store (peakOf (buffer));
+}
+
+// n <= kSlice samples, in place.
+void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, int n)
+{
+    // Which (target position, source cell) pair is selected right now.
+    const int target = juce::jlimit (0, juce::jmax (0, ngm.numTargets - 1),
+                                     static_cast<int> (apvts.getRawParameterValue ("tgtSel")->load() + 0.5f));
+    const int source = sourceIndexFor (static_cast<int> (apvts.getRawParameterValue ("srcGuitar")->load() + 0.5f),
+                                       static_cast<int> (apvts.getRawParameterValue ("srcPos")->load() + 0.5f));
+    if (ngmLoaded && (target != activeTarget || source != activeSource))
+    {
+        for (auto& st : stream)
+            st.setCondition (target, source, activeTarget < 0);
+        activeTarget = target;
+        activeSource = source;
+    }
+
+    // Voicing off and settled: nothing to compute (the streams are cleared when it is switched back on).
+    if (wetMix.getTargetValue() < 0.5f && ! wetMix.isSmoothing())
+    {
+        bypassed = true;
+        return;
+    }
+    if (bypassed)
+    {
+        bypassed = false;
+        if (ngmLoaded)
+            for (auto& st : stream)
+                st.reset();
+    }
+
+    // A guitar is usually mono: when both channels are identical, run the network once.
+    const bool dualMono = numChannels == 2
+        && std::memcmp (data[0], data[1], sizeof (float) * static_cast<size_t> (n)) == 0;
+    const int active = dualMono ? 1 : numChannels;
+    const bool wetOnly = wetMix.getTargetValue() > 0.5f && ! wetMix.isSmoothing();
+
+    // keep a dry copy only while the Voicing switch is (or just was) off
+    if (! wetOnly)
+        for (int c = 0; c < active; ++c)
+            std::copy (data[c], data[c] + n, dry[c].begin());
+
+    // --- auto level: estimate the input level slowly (only while there is signal), and bring it to the level
+    //     the network was trained at; the gain is undone after the network, so dynamics stay intact.
+    const float sr = static_cast<float> (currentSampleRate);
+    const bool autoOn = apvts.getRawParameterValue ("autoLevel")->load() > 0.5f && ngmLoaded;
+    float gStart = autoGain, gEnd = 1.0f;
+    if (autoOn)
+    {
+        float pw = 0.0f;
+        for (int c = 0; c < active; ++c)
+        {
+            double sum = 0.0;
+            for (int i = 0; i < n; ++i)
+                sum += static_cast<double> (data[c][i]) * data[c][i];
+            pw = juce::jmax (pw, static_cast<float> (sum / n));
+        }
+        if (pw > 1.0e-7f) // above about -70 dBFS
+        {
+            if (levelPower < 0.0f)
+                levelPower = pw;
+            else
+                levelPower += (pw - levelPower) * (1.0f - std::exp (-static_cast<float> (n) / (1.0f * sr)));
+        }
+        float wanted = 1.0f;
+        if (levelPower > 0.0f)
+        {
+            const float refPower = std::pow (10.0f, ngm.referenceRmsDb / 10.0f);
+            wanted = juce::jlimit (0.0631f, 63.1f, std::sqrt (refPower / levelPower)); // +-24 dB .. +36 dB
+        }
+        autoGain += (wanted - autoGain) * (1.0f - std::exp (-static_cast<float> (n) / (0.5f * sr)));
+        gEnd = autoGain;
+    }
+    else
+    {
+        autoGain = 1.0f;
+        gEnd = 1.0f;
+    }
+
+    float* wk[2] = { work[0].data(), work[1].data() };
+    for (int c = 0; c < active; ++c)
+        for (int i = 0; i < n; ++i)
+            wk[c][i] = data[c][i] * (gStart + (gEnd - gStart) * static_cast<float> (i) / static_cast<float> (n));
+
+    eqFir.process (wk, active, n);
+    if (ngmLoaded)
+        for (int c = 0; c < active; ++c)
+            stream[c].process (wk[c], wk[c], n);
+
+    for (int c = 0; c < active; ++c)
+        for (int i = 0; i < n; ++i)
+            wk[c][i] /= (gStart + (gEnd - gStart) * static_cast<float> (i) / static_cast<float> (n));
+
+    knobFir.process (wk, active, n);
+
+    // wet / dry (Voicing switch), then write back
+    for (int i = 0; i < n; ++i)
+    {
+        const float mix = wetOnly ? 1.0f : wetMix.getNextValue();
+        for (int c = 0; c < active; ++c)
+            data[c][i] = wetOnly ? wk[c][i] : dry[c][static_cast<size_t> (i)] + mix * (wk[c][i] - dry[c][static_cast<size_t> (i)]);
+    }
+    if (dualMono)
+        std::copy (data[0], data[0] + n, data[1]);
 }
 
 juce::AudioProcessorEditor* FourRealAudioProcessor::createEditor()

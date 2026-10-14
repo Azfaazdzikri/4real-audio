@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(FourRealAudio VERSION 0.4.0 LANGUAGES C CXX)
+project(FourRealAudio VERSION 0.5.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -52,7 +52,11 @@ set(FOURREAL_SOURCES
     Source/dsp/GuitarModels.h
     Source/dsp/FilterDesign.cpp
     Source/dsp/FilterDesign.h
-    Source/dsp/CrossfadeFir.h)
+    Source/dsp/CrossfadeFir.h
+    Source/dsp/NgmModel.cpp
+    Source/dsp/NgmModel.h
+    Source/dsp/NgmEngine.cpp
+    Source/dsp/NgmEngine.h)
 
 function(fourreal_add_plugin MODEL)
     set(target FourReal_${MODEL})
@@ -71,6 +75,12 @@ function(fourreal_add_plugin MODEL)
 
     target_sources(${target} PRIVATE ${FOURREAL_SOURCES})
 
+    # The trained network for this target guitar (a .ngm file), embedded in the plugin as NgmData::model_ngm.
+    juce_add_binary_data(${target}_Data
+        HEADER_NAME NgmData.h
+        NAMESPACE   NgmData
+        SOURCES     models/${MODEL}/model.ngm)
+
     target_compile_definitions(${target} PUBLIC
         FOURREAL_MODEL_${MODEL}=1
         JUCE_WEB_BROWSER=0
@@ -80,6 +90,7 @@ function(fourreal_add_plugin MODEL)
     target_link_libraries(${target}
         PRIVATE
             juce::juce_audio_utils
+            ${target}_Data
         PUBLIC
             juce::juce_recommended_config_flags
             juce::juce_recommended_lto_flags
@@ -102,4 +113,11 @@ if(FOURREAL_BUILD_TESTS)
         Source/dsp/GuitarModels.cpp
         Source/dsp/FilterDesign.cpp)
     target_include_directories(dsp_test PRIVATE Source/dsp)
+
+    add_executable(ngm_test
+        tests/ngm_test.cpp
+        Source/dsp/NgmModel.cpp
+        Source/dsp/NgmEngine.cpp
+        Source/dsp/FilterDesign.cpp)
+    target_include_directories(ngm_test PRIVATE Source/dsp)
 endif()

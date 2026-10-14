@@ -53,7 +53,7 @@ private:
     juce::Colour accent;
     int shownSourceGuitar = -1;
     Choice sourceGuitar, sourcePosition, targetSelector;
-    Toggle voicingToggle, keepLevelToggle;
+    Toggle voicingToggle, keepLevelToggle, autoLevelToggle;
     juce::Label sourceHeader, targetHeader;
 
     juce::Rectangle<int> meterArea;
