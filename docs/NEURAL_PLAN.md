@@ -36,3 +36,10 @@ Strum 4.02 vs 3.70 dan Palm Mute 9.21 vs 8.77 kalah). Error mendatar sejak langk
   Untuk tes dipakai pickup humbucker bridge, dengan sumber = "Les Paul Bridge Humbucker".
   Ini pendekatan: bodi, skala, dan pickup tidak identik dengan Les Paul, jadi hasilnya pendekatan, bukan pencocokan tepat.
 - Format model: .ngm (Neural Guitar Modeler), dimodifikasi dari .nam: JSON berisi konfigurasi arsitektur, bobot, metadata (target, sel/posisi, sample rate, kalibrasi level).
+
+## v0.5 (2026-10-14): neural stage in the plugin
+
+- `.ngm` files (one per target guitar) live in `models/<CODE>/model.ngm` and are embedded in each plugin at build time (`NgmData::model_ngm`).
+- C++ engine: `Source/dsp/NgmModel.*` (loader), `Source/dsp/NgmEngine.*` (streaming TCN, SSE2). Matches PyTorch to about -88 dB on the golden vectors (`tests/ngm_test.cpp`, `tests/golden/`). Cost about 16% of one core per channel (2.1 GHz cloud Xeon); a mono guitar on a stereo bus is computed once.
+- Signal path: input gain -> auto level (slow RMS to -30 dB, undone after the net) -> per-pair EQ (min-phase FIR) -> TCN -> knob filter (physical model, knobs now vs full) -> output gain.
+- Known limits: trained at 48 kHz (other rates: EQ exact, neural detail approximate; resampling not implemented); the EQ is min-phase in the plugin but zero-phase in training (about 15-20 dB below the signal difference on the golden test, a phase difference); Palm Mute is still the weakest technique; held-out test comes from the same recording session.
