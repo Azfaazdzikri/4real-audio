@@ -9,7 +9,7 @@
 #include "dsp/NgmEngine.h"
 #include "dsp/NgmModel.h"
 
-// 4real-audio - guitar tone transformer, v0.5 (neural network).
+// 4real-audio - guitar tone transformer, v0.5.1 (neural network).
 //
 // One code base, one plugin per TARGET guitar (LP, 335, SG, PRS, RIC, STR, TCR, FLC): the
 // variant is chosen at compile time (FOURREAL_MODEL_<CODE>, set in CMakeLists.txt).
@@ -90,7 +90,9 @@ private:
     // auto level: a slow estimate of the input level, so the network sees roughly the level it was trained at
     float levelPower = -1.0f, autoGain = 1.0f;
     juce::SmoothedValue<float> wetMix { 1.0f };
-    std::vector<float> work[2], dry[2];
+    std::vector<float> work[2], dry[2], pre[2];
+    float prevAmount = 0.0f;
+    bool netIdle = true;
     double currentSampleRate = 48000.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FourRealAudioProcessor)

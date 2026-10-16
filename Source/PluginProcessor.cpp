@@ -125,6 +125,10 @@ juce::AudioProcessorValueTreeState::ParameterLayout FourRealAudioProcessor::crea
     params.push_back (std::make_unique<AudioParameterBool> (ParameterID { "voicing", 1 }, "Voicing", true));
     params.push_back (std::make_unique<AudioParameterBool> (ParameterID { "keepLevel", 1 }, "Keep level difference", true));
     params.push_back (std::make_unique<AudioParameterBool> (ParameterID { "autoLevel", 1 }, "Auto level", true));
+    // How much of the network's residual is added on top of the per-pair EQ (0 = EQ only, 100 = full network).
+    params.push_back (std::make_unique<AudioParameterFloat> (
+        ParameterID { "neural", 1 }, "Neural amount", NormalisableRange<float> (0.0f, 100.0f, 1.0f), 25.0f,
+        AudioParameterFloatAttributes().withLabel ("%")));
 
     StringArray sourceNames;
     for (const auto& m : fourreal::allModels())
@@ -240,7 +244,10 @@ void FourRealAudioProcessor::prepareToPlay (double sampleRate, int /*samplesPerB
     {
         work[c].assign (static_cast<size_t> (kSlice), 0.0f);
         dry[c].assign (static_cast<size_t> (kSlice), 0.0f);
+        pre[c].assign (static_cast<size_t> (kSlice), 0.0f);
     }
+    prevAmount = 0.0f;
+    netIdle = true;
 
     if (ngmLoaded)
         for (auto& st : stream)
@@ -394,9 +401,32 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
             wk[c][i] = data[c][i] * (gStart + (gEnd - gStart) * static_cast<float> (i) / static_cast<float> (n));
 
     eqFir.process (wk, active, n);
-    if (ngmLoaded)
+
+    // Neural residual on top of the EQ, blended by the "Neural amount" knob. At 0 % the network is not run at all.
+    const float amount = apvts.getRawParameterValue ("neural")->load() * 0.01f;
+    if (ngmLoaded && (amount > 0.001f || prevAmount > 0.001f))
+    {
+        if (netIdle)
+        {
+            for (auto& st : stream)
+                st.reset(); // the streams' history is stale after being idle
+            netIdle = false;
+        }
         for (int c = 0; c < active; ++c)
+        {
+            std::copy (wk[c], wk[c] + n, pre[c].begin());
             stream[c].process (wk[c], wk[c], n);
+            for (int i = 0; i < n; ++i)
+            {
+                const float a = prevAmount + (amount - prevAmount) * static_cast<float> (i + 1) / static_cast<float> (n);
+                const float x = pre[c][static_cast<size_t> (i)];
+                wk[c][i] = x + a * (wk[c][i] - x);
+            }
+        }
+    }
+    else
+        netIdle = true;
+    prevAmount = amount;
 
     for (int c = 0; c < active; ++c)
         for (int i = 0; i < n; ++i)

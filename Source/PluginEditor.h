@@ -48,7 +48,7 @@ private:
 
     FourRealAudioProcessor& audioProcessor;
 
-    Knob inputKnob, outputKnob;
+    Knob inputKnob, outputKnob, neuralKnob;
     std::vector<std::unique_ptr<Knob>> modelKnobs; // target guitar: volumes first, then tones
     juce::Colour accent;
     int shownSourceGuitar = -1;

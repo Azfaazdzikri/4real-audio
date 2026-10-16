@@ -62,6 +62,9 @@ FourRealAudioEditor::FourRealAudioEditor (FourRealAudioProcessor& p)
         modelKnobs.push_back (std::make_unique<Knob>());
         setupKnob (*modelKnobs.back(), "tone" + juce::String ((int) i), target.tones[i].label, false);
     }
+    setupKnob (neuralKnob, "neural", "NEURAL", false);
+    neuralKnob.slider.setTextValueSuffix (" %");
+    neuralKnob.slider.setDoubleClickReturnValue (true, 25.0);
     setupKnob (outputKnob, "outputGain", "OUTPUT", true);
 
     styleLabel (sourceHeader, "MY GUITAR (SOURCE) - pick the closest recorded guitar", juce::Justification::centredLeft);
@@ -138,7 +141,7 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
 
     g.setColour (juce::Colours::white.withAlpha (0.5f));
     g.setFont (juce::Font (juce::FontOptions (13.0f)));
-    g.drawText ("guitar tone transformer  -  v0.5 test build (neural network)",
+    g.drawText ("guitar tone transformer  -  v0.5.1 test build (neural network)",
                 24, 44, getWidth() - 48, 18, juce::Justification::centredLeft);
 
     auto drawMeter = [&g, this] (juce::Rectangle<int> r, float level, const juce::String& name)
@@ -210,9 +213,10 @@ void FourRealAudioEditor::resized()
     std::vector<Knob*> knobs { &inputKnob };
     for (auto& k : modelKnobs)
         knobs.push_back (k.get());
+    knobs.push_back (&neuralKnob);
     knobs.push_back (&outputKnob);
 
-    const int colWidth = juce::jmin (130, area.getWidth() / 6);
+    const int colWidth = juce::jmin (130, area.getWidth() / juce::jmax (1, (int) knobs.size()));
     area.removeFromLeft ((area.getWidth() - colWidth * (int) knobs.size()) / 2);
     for (Knob* k : knobs)
     {
