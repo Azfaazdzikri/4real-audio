@@ -32,6 +32,7 @@ sys.path.insert(0, str(HERE))
 from data import is_test_key  # noqa: E402
 from metrics import diff, rms_shape  # noqa: E402
 from spec_common import N_BANDS, PAD_DB, RANGE, clip_db  # noqa: E402
+from spec_metrics import FREQ_OK, MARGIN_DB, diff_wide, fill_nan, rms_curve, rms_wide  # noqa: E402
 
 EQ_LIMIT_DB = 15.0
 MAX_DELTA_DB = 8.0
@@ -72,6 +73,7 @@ class SpecEQ(nn.Module):
         nn.init.zeros_(self.head[1].bias)
         self.eq = nn.Parameter(torch.zeros(n_cells, n_cells, N_BANDS) if eq_init is None else torch.from_numpy(eq_init).float())
         self.register_buffer("range_mask", torch.from_numpy(RANGE.astype(np.float32)))
+        self.register_buffer("freq_mask", torch.from_numpy(FREQ_OK))
         w = np.zeros((N_CTRL, N_BANDS), dtype=np.float32)
         for j in range(N_BANDS):
             p = j * (N_CTRL - 1) / (N_BANDS - 1)
@@ -135,6 +137,12 @@ class FrameData:
         for i, it in enumerate(self.items):
             if not it["skip"]:
                 self.clip[i] = clip_db(self.frames[i, :it["nf"]].astype(np.float32))
+        # recording noise floor of every cell and band: the 1st percentile of all its frames (decay tails)
+        self.floor = np.zeros((len(self.cells), N_BANDS), dtype=np.float32)
+        for c in range(len(self.cells)):
+            rows = [i for i, it in enumerate(self.items) if self.cell_id[it["cell"]] == c and not it["skip"]]
+            sel = np.concatenate([self.frames[i, :self.nf[i]].astype(np.float32) for i in rows], axis=0)
+            self.floor[c] = np.percentile(sel, 1.0, axis=0)
 
     def _usable(self, by_cell):
         return {c: r for c, r in by_cell.items() if c not in self.held_out_cells}
@@ -154,7 +162,7 @@ class FrameData:
         x = self.frames[rows_s, :fmax].astype(np.float32)
         y = self.frames[rows_t, :fmax].astype(np.float32)
         valid = (np.arange(fmax)[None, :] < n[:, None]).astype(np.float32)
-        return x, y, valid, np.array(src), np.array(tgt)
+        return x, y, valid, np.array(src), np.array(tgt), self.floor[src], self.floor[tgt]
 
     def test_pairs(self, rng, per_key=6):
         out = []
@@ -178,26 +186,34 @@ def pooled_db(Ldb, w):
     return 10.0 * torch.log10(q + 1e-14)
 
 
-def shape_rms(pred, tgt, src, rng_mask):
-    ok = ((tgt > tgt.max(-1, keepdim=True).values - 45.0) & (src > src.max(-1, keepdim=True).values - 45.0) & rng_mask).float()
+def shape_rms(pred, tgt, ok):
+    """RMS (dB) of pred - tgt over the bands in the 0/1 mask `ok`, after removing the mean level."""
     n = ok.sum(-1).clamp(min=1.0)
     d = (pred - tgt) * ok
     d = (d - d.sum(-1, keepdim=True) / n.unsqueeze(-1)) * ok
     return torch.sqrt((d ** 2).sum(-1) / n + 1e-6)
 
 
-def spec_loss(Ls, Lt, valid, gains, delta, range_mask):
-    rm = range_mask > 0.5
+def band_ok(src_db, tgt_db, fs, ft, fmask):
+    """Bands that are clearly above both recordings' noise floors (see spec_metrics.py)."""
+    return ((src_db > fs + MARGIN_DB) & (tgt_db > ft + MARGIN_DB) & fmask).float()
+
+
+def spec_loss(Ls, Lt, valid, gains, delta, fs, ft, fmask):
     Lp = Ls + gains
-    clip = shape_rms(pooled_db(Lp, valid), pooled_db(Lt, valid), pooled_db(Ls, valid), rm).mean()
+    sc, tc = pooled_db(Ls, valid), pooled_db(Lt, valid)
+    clip = shape_rms(pooled_db(Lp, valid), tc, band_ok(sc, tc, fs, ft, fmask)).mean()
     B, Fn, _ = Ls.shape
     pad = (-Fn) % SEG
+
     def seg(x):
         return F.pad(x, (0, 0, 0, pad), value=PAD_DB).reshape(B, -1, SEG, N_BANDS)
     w = F.pad(valid, (0, pad)).reshape(B, -1, SEG)
-    r = shape_rms(pooled_db(seg(Lp), w), pooled_db(seg(Lt), w), pooled_db(seg(Ls), w), rm)  # (B, nseg)
-    ok = (w.sum(-1) >= SEG // 2).float()
-    seg_loss = (r * ok).sum() / ok.sum().clamp(min=1.0)
+    ss, ts = pooled_db(seg(Ls), w), pooled_db(seg(Lt), w)
+    ok = band_ok(ss, ts, fs.unsqueeze(1), ft.unsqueeze(1), fmask)             # (B, nseg, 64)
+    r = shape_rms(pooled_db(seg(Lp), w), ts, ok)                               # (B, nseg)
+    use = ((w.sum(-1) >= SEG // 2) & (ok.sum(-1) >= 15)).float()
+    seg_loss = (r * use).sum() / use.sum().clamp(min=1.0)
     vm = valid.unsqueeze(-1)
     reg = 1e-3 * ((delta ** 2) * vm).sum() / (vm.sum() * N_BANDS) \
         + 1e-2 * (((delta[:, 1:] - delta[:, :-1]) ** 2) * vm[:, 1:]).sum() / (vm[:, 1:].sum() * N_BANDS)
@@ -213,6 +229,7 @@ class Evaluator:
         self.eq_cache = {}
 
     def static_eq(self, a, b, tech=None):
+        """Median (tgt - src) band difference over the TRAINING notes, NaN where never measurable."""
         if (a, b, tech) not in self.eq_cache:
             ds = []
             for key in self.d.train_keys:
@@ -220,11 +237,12 @@ class Evaluator:
                     continue
                 by_cell = self.d._usable(self.d.rows[key])
                 if a in by_cell and b in by_cell:
-                    ds.append(diff(self.d.clip[by_cell[a]], self.d.clip[by_cell[b]]))
+                    ds.append(diff_wide(self.d.clip[by_cell[a]], self.d.clip[by_cell[b]], self.d.floor[a], self.d.floor[b]))
             self.eq_cache[(a, b, tech)] = np.nanmedian(np.array(ds), axis=0) if ds else np.full(N_BANDS, np.nan)
         return self.eq_cache[(a, b, tech)]
 
     def eq_init(self, path):
+        """Static EQ for every pair. Bands that cannot be measured keep the nearest measured value (no cliffs)."""
         if path.exists():
             return np.load(path)
         n = len(self.d.cells)
@@ -234,34 +252,45 @@ class Evaluator:
             for a in range(n):
                 for b in range(n):
                     if a != b:
-                        table[a, b] = np.nan_to_num(self.static_eq(a, b), nan=0.0)
+                        table[a, b] = fill_nan(self.static_eq(a, b))
         table = np.clip(table, -EQ_LIMIT_DB, EQ_LIMIT_DB)
         np.save(path, table)
         return table
 
     @torch.no_grad()
     def run(self, model):
+        from metrics import diff, rms_shape  # legacy metric, kept so numbers stay comparable with earlier runs
         model.eval()
-        scores = {"none": [], "static_eq": [], "model": []}
+        names = ("none", "static_eq", "model")
+        wide = {k: [] for k in names}
+        legacy = {k: [] for k in names}
         by_tech = {}
+        eq_table = model.eq.detach().cpu().numpy()
         for key, rs, a, rt, b in self.pairs:
             nf = int(self.d.nf[rs])
             L = torch.from_numpy(self.d.frames[rs, :nf].astype(np.float32))[None].to(self.device)
             g, _ = model.gains(L, torch.tensor([a], device=self.device), torch.tensor([b], device=self.device))
             pred = clip_db((L + g)[0].cpu().numpy())
-            true_d = diff(self.d.clip[rs], self.d.clip[rt])
+            src, tgt = self.d.clip[rs], self.d.clip[rt]
+            fs, ft = self.d.floor[a], self.d.floor[b]
             tech = key.split("/")[0]
-            s = (rms_shape(true_d, np.zeros(N_BANDS)), rms_shape(true_d, self.static_eq(a, b)),
-                 rms_shape(true_d, diff(self.d.clip[rs], pred)), rms_shape(true_d, self.static_eq(a, b, tech)))
-            for name, v in zip(("none", "static_eq", "model"), s):
-                scores[name].append(v)
-            by_tech.setdefault(tech, []).append(s)
+            static = fill_nan(self.static_eq(a, b))
+            w = (rms_wide(src, tgt, src, fs, ft), rms_wide(src, tgt, clip_db(L[0].cpu().numpy()) + static, fs, ft),
+                 rms_wide(src, tgt, pred, fs, ft))
+            true_d = diff(src, tgt)
+            lg = (rms_shape(true_d, np.zeros(N_BANDS)), rms_shape(true_d, static),
+                  rms_shape(true_d, diff(src, pred)))
+            for name, v1, v2 in zip(names, w, lg):
+                wide[name].append(v1)
+                legacy[name].append(v2)
+            by_tech.setdefault(tech, []).append(w)
         model.train()
-        out = {k: float(np.nanmean(v)) for k, v in scores.items()}
-        out["n_pairs"] = len(self.pairs)
+        out = {"n_pairs": len(self.pairs)}
+        for k in names:
+            out[k] = float(np.nanmean(wide[k]))              # main number: the wide metric
+            out["legacy_" + k] = float(np.nanmean(legacy[k]))  # the old metric (45 dB below peak, 150-8000 Hz)
         out["by_technique"] = {t: {"none": float(np.nanmean([s[0] for s in v])), "static_eq": float(np.nanmean([s[1] for s in v])),
-                                   "model": float(np.nanmean([s[2] for s in v])), "static_tech": float(np.nanmean([s[3] for s in v])),
-                                   "n": len(v)} for t, v in by_tech.items()}
+                                   "model": float(np.nanmean([s[2] for s in v])), "n": len(v)} for t, v in by_tech.items()}
         return out
 
 
@@ -322,21 +351,23 @@ def main() -> int:
         r = evaluator.run(model)
         r["step"] = step
         history.append(r)
-        print(f"[eval @ {step}] shape error dB (lower is better): no change {r['none']:.2f} | static EQ {r['static_eq']:.2f}"
+        print(f"[eval @ {step}] shape error dB (lower is better), 100 Hz-16 kHz: no change {r['none']:.2f} | static EQ {r['static_eq']:.2f}"
               f" | model {r['model']:.2f}  ({r['n_pairs']} held-out pairs, {time.time() - t0:.0f}s)", flush=True)
+        print(f"    old metric (150 Hz-8 kHz, for comparison): no change {r['legacy_none']:.2f} | static EQ {r['legacy_static_eq']:.2f}"
+              f" | model {r['legacy_model']:.2f}", flush=True)
         for t, v in r["by_technique"].items():
-            print(f"    {t:10s} n={v['n']:4d}  none {v['none']:.2f}  static {v['static_eq']:.2f}"
-                  f"  static-per-technique(oracle) {v['static_tech']:.2f}  model {v['model']:.2f}", flush=True)
+            print(f"    {t:10s} n={v['n']:4d}  none {v['none']:.2f}  static {v['static_eq']:.2f}  model {v['model']:.2f}", flush=True)
         (args.out_dir / "results.json").write_text(json.dumps(history, indent=1), encoding="utf-8")
 
     do_eval(start)
     t_start = time.time()
     for step in range(start + 1, args.steps + 1):
-        x, y, valid, a, b = data.sample(args.batch, rng)
-        x, y, valid = (torch.from_numpy(v).to(device) for v in (x, y, valid))
+        x, y, valid, a, b, fs, ft = data.sample(args.batch, rng)
+        x, y, valid, fs, ft = (torch.from_numpy(v).to(device) for v in (x, y, valid, fs, ft))
         a, b = torch.from_numpy(a).to(device), torch.from_numpy(b).to(device)
         g, d = model.gains(x, a, b)
-        loss, clip, seg = spec_loss(x, y, valid, g, d, model.range_mask)
+        loss, clip, seg = spec_loss(x, y, valid, g, d, fs, ft, model.freq_mask)
+        loss = loss + 0.05 * ((model.eq[..., 1:] - model.eq[..., :-1]) ** 2).mean()  # no cliffs in the static EQ
         opt.zero_grad(set_to_none=True)
         loss.backward()
         nn.utils.clip_grad_norm_(other, 1.0)

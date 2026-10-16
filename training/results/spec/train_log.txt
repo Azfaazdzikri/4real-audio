@@ -1,0 +1,91 @@
+device cpu | cells 17 | train keys 332 | test keys 77
+parameters: 72772
+[eval @ 0] shape error dB (lower is better): no change 5.32 | static EQ 4.22 | model 4.14  (462 held-out pairs, 9s)
+    Palm Mute  n=  78  none 5.19  static 4.75  static-per-technique(oracle) 4.57  model 4.66
+    Strum      n= 276  none 4.71  static 3.32  static-per-technique(oracle) 3.33  model 3.32
+    Sustain    n= 108  none 6.97  static 6.13  static-per-technique(oracle) 6.17  model 5.85
+step 100/6000 loss 7.903 (clip 4.160 dB, segments 7.484 dB) lr 1.01e-03 31s
+step 200/6000 loss 6.636 (clip 3.227 dB, segments 6.816 dB) lr 1.99e-03 60s
+step 300/6000 loss 6.769 (clip 3.273 dB, segments 6.988 dB) lr 1.99e-03 90s
+step 400/6000 loss 6.752 (clip 3.927 dB, segments 5.647 dB) lr 1.98e-03 120s
+step 500/6000 loss 7.025 (clip 3.498 dB, segments 7.042 dB) lr 1.97e-03 150s
+step 600/6000 loss 7.455 (clip 3.970 dB, segments 6.961 dB) lr 1.95e-03 179s
+step 700/6000 loss 7.586 (clip 4.360 dB, segments 6.440 dB) lr 1.93e-03 209s
+step 800/6000 loss 8.122 (clip 4.713 dB, segments 6.813 dB) lr 1.91e-03 238s
+step 900/6000 loss 6.578 (clip 3.320 dB, segments 6.504 dB) lr 1.89e-03 268s
+step 1000/6000 loss 8.167 (clip 3.944 dB, segments 8.432 dB) lr 1.87e-03 298s
+[eval @ 1000] shape error dB (lower is better): no change 5.32 | static EQ 4.22 | model 4.00  (462 held-out pairs, 5s)
+    Palm Mute  n=  78  none 5.19  static 4.75  static-per-technique(oracle) 4.57  model 4.63
+    Strum      n= 276  none 4.71  static 3.32  static-per-technique(oracle) 3.33  model 3.22
+    Sustain    n= 108  none 6.97  static 6.13  static-per-technique(oracle) 6.17  model 5.56
+step 1100/6000 loss 6.453 (clip 3.421 dB, segments 6.052 dB) lr 1.84e-03 333s
+step 1200/6000 loss 7.169 (clip 3.847 dB, segments 6.630 dB) lr 1.81e-03 362s
+step 1300/6000 loss 6.799 (clip 3.797 dB, segments 5.998 dB) lr 1.78e-03 392s
+step 1400/6000 loss 7.151 (clip 3.733 dB, segments 6.822 dB) lr 1.74e-03 422s
+step 1500/6000 loss 7.206 (clip 3.855 dB, segments 6.683 dB) lr 1.71e-03 451s
+step 1600/6000 loss 7.104 (clip 3.962 dB, segments 6.270 dB) lr 1.67e-03 481s
+step 1700/6000 loss 5.873 (clip 3.235 dB, segments 5.264 dB) lr 1.63e-03 511s
+step 1800/6000 loss 6.785 (clip 3.420 dB, segments 6.719 dB) lr 1.59e-03 540s
+step 1900/6000 loss 7.264 (clip 4.195 dB, segments 6.121 dB) lr 1.54e-03 570s
+step 2000/6000 loss 6.132 (clip 3.217 dB, segments 5.809 dB) lr 1.50e-03 600s
+[eval @ 2000] shape error dB (lower is better): no change 5.32 | static EQ 4.22 | model 3.90  (462 held-out pairs, 4s)
+    Palm Mute  n=  78  none 5.19  static 4.75  static-per-technique(oracle) 4.57  model 4.59
+    Strum      n= 276  none 4.71  static 3.32  static-per-technique(oracle) 3.33  model 3.12
+    Sustain    n= 108  none 6.97  static 6.13  static-per-technique(oracle) 6.17  model 5.40
+step 2100/6000 loss 6.503 (clip 3.241 dB, segments 6.506 dB) lr 1.45e-03 633s
+step 2200/6000 loss 5.829 (clip 2.890 dB, segments 5.864 dB) lr 1.41e-03 663s
+step 2300/6000 loss 7.426 (clip 4.253 dB, segments 6.329 dB) lr 1.36e-03 692s
+step 2400/6000 loss 6.618 (clip 3.345 dB, segments 6.527 dB) lr 1.31e-03 722s
+step 2500/6000 loss 6.291 (clip 3.287 dB, segments 5.988 dB) lr 1.26e-03 752s
+step 2600/6000 loss 7.343 (clip 4.169 dB, segments 6.326 dB) lr 1.21e-03 783s
+step 2700/6000 loss 6.723 (clip 3.685 dB, segments 6.056 dB) lr 1.16e-03 813s
+step 2800/6000 loss 6.719 (clip 3.667 dB, segments 6.086 dB) lr 1.10e-03 844s
+step 2900/6000 loss 6.489 (clip 3.140 dB, segments 6.676 dB) lr 1.05e-03 873s
+step 3000/6000 loss 6.767 (clip 3.872 dB, segments 5.770 dB) lr 1.00e-03 903s
+[eval @ 3000] shape error dB (lower is better): no change 5.32 | static EQ 4.22 | model 3.83  (462 held-out pairs, 4s)
+    Palm Mute  n=  78  none 5.19  static 4.75  static-per-technique(oracle) 4.57  model 4.56
+    Strum      n= 276  none 4.71  static 3.32  static-per-technique(oracle) 3.33  model 3.06
+    Sustain    n= 108  none 6.97  static 6.13  static-per-technique(oracle) 6.17  model 5.26
+step 3100/6000 loss 5.805 (clip 3.030 dB, segments 5.532 dB) lr 9.48e-04 937s
+step 3200/6000 loss 5.684 (clip 2.943 dB, segments 5.465 dB) lr 8.95e-04 967s
+step 3300/6000 loss 5.871 (clip 2.921 dB, segments 5.882 dB) lr 8.44e-04 996s
+step 3400/6000 loss 6.202 (clip 3.450 dB, segments 5.485 dB) lr 7.92e-04 1026s
+step 3500/6000 loss 5.470 (clip 2.816 dB, segments 5.289 dB) lr 7.41e-04 1056s
+step 3600/6000 loss 5.359 (clip 2.923 dB, segments 4.853 dB) lr 6.91e-04 1086s
+step 3700/6000 loss 7.122 (clip 3.787 dB, segments 6.649 dB) lr 6.42e-04 1116s
+step 3800/6000 loss 7.237 (clip 3.960 dB, segments 6.525 dB) lr 5.93e-04 1146s
+step 3900/6000 loss 5.801 (clip 3.434 dB, segments 4.712 dB) lr 5.46e-04 1175s
+step 4000/6000 loss 6.866 (clip 3.783 dB, segments 6.150 dB) lr 5.00e-04 1205s
+[eval @ 4000] shape error dB (lower is better): no change 5.32 | static EQ 4.22 | model 3.82  (462 held-out pairs, 4s)
+    Palm Mute  n=  78  none 5.19  static 4.75  static-per-technique(oracle) 4.57  model 4.55
+    Strum      n= 276  none 4.71  static 3.32  static-per-technique(oracle) 3.33  model 3.05
+    Sustain    n= 108  none 6.97  static 6.13  static-per-technique(oracle) 6.17  model 5.23
+step 4100/6000 loss 6.171 (clip 3.419 dB, segments 5.480 dB) lr 4.55e-04 1239s
+step 4200/6000 loss 6.094 (clip 3.375 dB, segments 5.417 dB) lr 4.12e-04 1269s
+step 4300/6000 loss 5.327 (clip 2.648 dB, segments 5.344 dB) lr 3.71e-04 1299s
+step 4400/6000 loss 5.811 (clip 3.287 dB, segments 5.028 dB) lr 3.31e-04 1329s
+step 4500/6000 loss 6.387 (clip 3.265 dB, segments 6.220 dB) lr 2.93e-04 1359s
+step 4600/6000 loss 6.635 (clip 3.526 dB, segments 6.202 dB) lr 2.57e-04 1388s
+step 4700/6000 loss 6.227 (clip 3.162 dB, segments 6.111 dB) lr 2.23e-04 1418s
+step 4800/6000 loss 7.003 (clip 3.952 dB, segments 6.077 dB) lr 1.91e-04 1448s
+step 4900/6000 loss 6.038 (clip 3.149 dB, segments 5.761 dB) lr 1.61e-04 1478s
+step 5000/6000 loss 6.474 (clip 3.119 dB, segments 6.684 dB) lr 1.34e-04 1508s
+[eval @ 5000] shape error dB (lower is better): no change 5.32 | static EQ 4.22 | model 3.80  (462 held-out pairs, 4s)
+    Palm Mute  n=  78  none 5.19  static 4.75  static-per-technique(oracle) 4.57  model 4.53
+    Strum      n= 276  none 4.71  static 3.32  static-per-technique(oracle) 3.33  model 3.03
+    Sustain    n= 108  none 6.97  static 6.13  static-per-technique(oracle) 6.17  model 5.22
+step 5100/6000 loss 7.196 (clip 4.241 dB, segments 5.888 dB) lr 1.09e-04 1541s
+step 5200/6000 loss 6.401 (clip 3.666 dB, segments 5.449 dB) lr 8.65e-05 1571s
+step 5300/6000 loss 5.775 (clip 3.335 dB, segments 4.857 dB) lr 6.64e-05 1601s
+step 5400/6000 loss 5.315 (clip 2.905 dB, segments 4.798 dB) lr 4.89e-05 1631s
+step 5500/6000 loss 7.993 (clip 4.326 dB, segments 7.311 dB) lr 3.41e-05 1661s
+step 5600/6000 loss 7.524 (clip 4.186 dB, segments 6.648 dB) lr 2.19e-05 1691s
+step 5700/6000 loss 7.739 (clip 4.275 dB, segments 6.903 dB) lr 1.23e-05 1720s
+step 5800/6000 loss 7.302 (clip 4.363 dB, segments 5.855 dB) lr 5.48e-06 1750s
+step 5900/6000 loss 6.692 (clip 3.490 dB, segments 6.381 dB) lr 1.37e-06 1780s
+step 6000/6000 loss 6.033 (clip 2.896 dB, segments 6.251 dB) lr 0.00e+00 1809s
+[eval @ 6000] shape error dB (lower is better): no change 5.32 | static EQ 4.22 | model 3.79  (462 held-out pairs, 4s)
+    Palm Mute  n=  78  none 5.19  static 4.75  static-per-technique(oracle) 4.57  model 4.53
+    Strum      n= 276  none 4.71  static 3.32  static-per-technique(oracle) 3.33  model 3.03
+    Sustain    n= 108  none 6.97  static 6.13  static-per-technique(oracle) 6.17  model 5.21
+done: /content/drive/MyDrive/4real_nn/spec_run/model.pt

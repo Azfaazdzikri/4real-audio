@@ -20,7 +20,8 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
-from metrics import diff, rms_shape  # noqa: E402
+from metrics import diff  # noqa: E402
+from spec_metrics import rms_wide  # noqa: E402
 from preprocess_wav import read_wav, to_mono, trim, write_wav24  # noqa: E402
 from spec_common import RATE, clip_db, frame_bands_db  # noqa: E402
 from spec_numpy import SpecNumpy, process  # noqa: E402
@@ -95,14 +96,15 @@ def main() -> int:
             return clip_db(frame_bands_db(sig * 10.0 ** (gain / 20.0)))
         src_b, tgt_b = bands(x, gs), bands(t, gt)
         true_d = diff(src_b, tgt_b)
-        s_none = rms_shape(true_d, np.zeros(64))
-        s_static = rms_shape(true_d, diff(src_b, bands(y_static, gs)))
-        s_audio = rms_shape(true_d, diff(src_b, bands(y_model, gs)))
+        fs_, ft_ = data.floor[a], data.floor[b]
+        s_none = rms_wide(src_b, tgt_b, src_b, fs_, ft_)
+        s_static = rms_wide(src_b, tgt_b, bands(y_static, gs), fs_, ft_)
+        s_audio = rms_wide(src_b, tgt_b, bands(y_model, gs), fs_, ft_)
         # what the training evaluation predicts for the same pair
         with torch.no_grad():
             Lf = torch.from_numpy(data.frames[rs_, :int(data.nf[rs_])].astype(np.float32))[None]
             g, _ = net.gains(Lf, torch.tensor([a]), torch.tensor([b]))
-        s_train = rms_shape(true_d, diff(data.clip[rs_], clip_db((Lf + g)[0].numpy())))
+        s_train = rms_wide(src_b, tgt_b, clip_db((Lf + g)[0].numpy()), fs_, ft_)
         name = f"{n:02d}_{key.replace('/', '_').replace('.wav', '')}"
         label = f"{src_item['cell'].split('|')[0][:14]} -> {tgt_item['cell'].split('|')[0][:14]} {key[:24]}"
         print(f"{label:58s} {s_none:6.2f} {s_static:7.2f} {s_train:13.2f} {s_audio:13.2f}")
