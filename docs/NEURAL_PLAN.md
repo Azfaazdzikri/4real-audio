@@ -43,3 +43,25 @@ Strum 4.02 vs 3.70 dan Palm Mute 9.21 vs 8.77 kalah). Error mendatar sejak langk
 - C++ engine: `Source/dsp/NgmModel.*` (loader), `Source/dsp/NgmEngine.*` (streaming TCN, SSE2). Matches PyTorch to about -88 dB on the golden vectors (`tests/ngm_test.cpp`, `tests/golden/`). Cost about 16% of one core per channel (2.1 GHz cloud Xeon); a mono guitar on a stereo bus is computed once.
 - Signal path: input gain -> auto level (slow RMS to -30 dB, undone after the net) -> per-pair EQ (min-phase FIR) -> TCN -> knob filter (physical model, knobs now vs full) -> output gain.
 - Known limits: trained at 48 kHz (other rates: EQ exact, neural detail approximate; resampling not implemented); the EQ is min-phase in the plugin but zero-phase in training (about 15-20 dB below the signal difference on the golden test, a phase difference); Palm Mute is still the weakest technique; held-out test comes from the same recording session.
+
+## v3 (2026-10-16): spectral-envelope model (replaces the waveform TCN)
+
+Why: the v2 TCN generates waveform. Training pairs are not sample aligned (different performances), so the loss can only compare
+spectra, and a spectrum-only loss lets a waveform generator add harmonics and texture. Measured on the v2 `.ngm`: a pure
+220 Hz sine at training level comes out with about -11 dB harmonic distortion (about 28%), and the network residual is
+50-60% of the signal amplitude. In a plugin this is audible as crackle. NAM does not have this problem because it trains on
+sample-aligned input/output (a re-amped DI) with a waveform loss; this data cannot be aligned.
+
+v3: the network never touches the waveform. Every 512 samples (10.7 ms) it looks at the band spectra of the last ~0.3 s of the
+INPUT, and predicts a gain curve (64 bands, dB) on top of the static per-pair EQ. The plugin applies it as a minimum-phase FIR, so
+the output is the input filtered (no added distortion or noise by construction). Cost is a fraction of a percent of a core.
+
+- Data: `prepare_frames.py` stores only per-frame band spectra (4096-sample frames, hop 512): Sustain/Strum 8 s, Palm Mute 4 s, mono. About 0.7 GB.
+  Also reports the left/right channel difference (mono vs stereo question).
+- Loss: the evaluation metric (shape-only RMS over the 64 bands) on the whole clip + on 170 ms segments (decay / palm mute) + smoothness.
+- Limits that remain: a spectral-envelope model can only change tone (EQ-like, time varying). It cannot reproduce pick attack, string excitation
+  or other details that need aligned data. The dynamic part is smooth (20 control points), so pitch-dependent comb structure of a pickup
+  position is only partly captured.
+- Tools: `train_spec.py` (train + held-out evaluation), `listen.py` (writes source / static / model / target wavs for A/B listening and checks that
+  the filtered audio scores like the training evaluation), `spec_numpy.py` (exact reference of the plugin algorithm, to port to C++),
+  notebook `colab_stage4_spec.ipynb`.
