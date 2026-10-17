@@ -62,9 +62,9 @@ FourRealAudioEditor::FourRealAudioEditor (FourRealAudioProcessor& p)
         modelKnobs.push_back (std::make_unique<Knob>());
         setupKnob (*modelKnobs.back(), "tone" + juce::String ((int) i), target.tones[i].label, false);
     }
-    setupKnob (neuralKnob, "neural", "NEURAL", false);
-    neuralKnob.slider.setTextValueSuffix (" %");
-    neuralKnob.slider.setDoubleClickReturnValue (true, 25.0);
+    setupKnob (intensityKnob, "intensity", "INTENSITY", false);
+    intensityKnob.slider.setTextValueSuffix (" %");
+    intensityKnob.slider.setDoubleClickReturnValue (true, 100.0);
     setupKnob (outputKnob, "outputGain", "OUTPUT", true);
 
     styleLabel (sourceHeader, "MY GUITAR (SOURCE) - pick the closest recorded guitar", juce::Justification::centredLeft);
@@ -141,7 +141,7 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
 
     g.setColour (juce::Colours::white.withAlpha (0.5f));
     g.setFont (juce::Font (juce::FontOptions (13.0f)));
-    g.drawText ("guitar tone transformer  -  v0.5.1 test build (neural network)",
+    g.drawText ("guitar tone transformer  -  v0.6.0 test build (spectral model)",
                 24, 44, getWidth() - 48, 18, juce::Justification::centredLeft);
 
     auto drawMeter = [&g, this] (juce::Rectangle<int> r, float level, const juce::String& name)
@@ -160,16 +160,16 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
         g.drawText (name, r.reduced (6, 0), juce::Justification::centredLeft);
     };
 
-    // The network was trained on 48 kHz audio. At other rates the EQ stage is still exact, only the neural detail is approximate.
+    // The model was trained on 48 kHz audio. At other rates the frequencies stay right, the analysis timing is only approximate.
     const double sr = audioProcessor.hostSampleRate.load();
-    if (std::abs (sr - 48000.0) > 1.0 || ! audioProcessor.neuralModelLoaded())
+    if (std::abs (sr - 48000.0) > 1.0 || ! audioProcessor.modelLoaded())
     {
         g.setColour (juce::Colour (0xffffb347));
         g.setFont (juce::Font (juce::FontOptions (12.0f)));
-        g.drawText (audioProcessor.neuralModelLoaded()
+        g.drawText (audioProcessor.modelLoaded()
                         ? juce::String ("Sample rate is ") + juce::String (sr / 1000.0, 1)
-                              + " kHz: the neural stage was trained at 48 kHz, set the project to 48 kHz for best accuracy"
-                        : juce::String ("Neural model failed to load"),
+                              + " kHz: the model was trained at 48 kHz, set the project to 48 kHz for best accuracy"
+                        : juce::String ("Model failed to load"),
                     24, getHeight() - 74, getWidth() - 48, 16, juce::Justification::centredLeft);
     }
 
@@ -213,7 +213,7 @@ void FourRealAudioEditor::resized()
     std::vector<Knob*> knobs { &inputKnob };
     for (auto& k : modelKnobs)
         knobs.push_back (k.get());
-    knobs.push_back (&neuralKnob);
+    knobs.push_back (&intensityKnob);
     knobs.push_back (&outputKnob);
 
     const int colWidth = juce::jmin (130, area.getWidth() / juce::jmax (1, (int) knobs.size()));

@@ -32,53 +32,7 @@ from metrics import BAND_CENTERS  # noqa: E402
 
 FORMAT_VERSION = "0.1.0"
 
-# Plugin guitar codes in the order the plugin lists them, with the selector positions that exist in the data.
-GUITARS = [
-    ("LP", ["bridge", "middle", "neck"]),
-    ("335", ["neck"]),
-    ("SG", ["bridge", "neck"]),
-    ("PRS", ["bridge", "middle", "neck"]),
-    ("RIC", ["bridge"]),
-    ("STR", ["bridge", "bridge-middle", "middle-neck", "neck"]),
-    ("TCR", ["bridge", "neck"]),
-    ("FLC", ["middle"]),
-]
-
-
-def guitar_of(cell: str):
-    s = cell.lower()
-    if "g6136" in s or "falcon" in s:
-        return "FLC"
-    if "335" in s:
-        return "335"
-    if "gibson sg" in s or " sg " in s:
-        return "SG"
-    if "prs" in s:
-        return "PRS"
-    if "rickenbacker" in s:
-        return "RIC"
-    if "strato" in s:
-        return "STR"
-    if "telecaster" in s:
-        return "TCR"
-    if "lespaul" in s or "les paul" in s:
-        return "LP"
-    raise ValueError(f"unknown guitar in cell name: {cell}")
-
-
-def position_of(cell: str):
-    p = cell.split("|", 1)[1].lower()
-    if "bridge-middle" in p:
-        return "bridge-middle"
-    if "middle-neck" in p:
-        return "middle-neck"
-    if "bridge" in p:
-        return "bridge"
-    if "neck" in p:
-        return "neck"
-    if "middle" in p:
-        return "middle"
-    raise ValueError(f"unknown position in cell name: {cell}")
+from guitar_map import GUITARS, guitar_of, position_of  # noqa: E402
 
 
 def flat(t, digits=7):

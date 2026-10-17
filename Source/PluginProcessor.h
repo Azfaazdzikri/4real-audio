@@ -6,18 +6,19 @@
 #include "dsp/FilterDesign.h"
 #include "dsp/GuitarCircuit.h"
 #include "dsp/GuitarModels.h"
-#include "dsp/NgmEngine.h"
-#include "dsp/NgmModel.h"
+#include "dsp/SpecEngine.h"
+#include "dsp/SpecModel.h"
 
-// 4real-audio - guitar tone transformer, v0.5.1 (neural network).
+// 4real-audio - guitar tone transformer, v0.6.0 (spectral model).
 //
 // One code base, one plugin per TARGET guitar (LP, 335, SG, PRS, RIC, STR, TCR, FLC): the
 // variant is chosen at compile time (FOURREAL_MODEL_<CODE>, set in CMakeLists.txt).
-// Signal path:  input gain -> auto level -> per-pair EQ (min-phase FIR) -> conditional TCN
-//               (weights from the embedded .ngm file) -> undo auto level -> volume/tone knob
-//               filter (physical model of the target guitar's pots) -> output gain.
-// The network was trained on recordings made with the knobs full, so the volume and tone knobs
-// of the target guitar are applied by the physical circuit model on top of the neural stage.
+// Signal path:  input gain -> spectral engine (per-pair EQ + small network that follows the played
+//               sound, applied as a min-phase FIR, so it can never add distortion or noise; the model
+//               comes from the embedded .spm file) -> volume/tone knob filter (physical model of the
+//               target guitar's pots) -> output gain.
+// The model was trained on recordings made with the knobs full, so the volume and tone knobs of the
+// target guitar are applied by the physical circuit model on top of it.
 class FourRealAudioProcessor : public juce::AudioProcessor,
                                private juce::AudioProcessorValueTreeState::Listener,
                                private juce::AsyncUpdater
@@ -60,13 +61,12 @@ public:
     std::atomic<float> inputPeak { 0.0f };
     std::atomic<float> outputPeak { 0.0f };
     std::atomic<double> hostSampleRate { 48000.0 };
-    bool neuralModelLoaded() const { return ngmLoaded; }
+    bool modelLoaded() const { return specLoaded; }
 
 private:
     void parameterChanged (const juce::String& parameterID, float newValue) override;
     void handleAsyncUpdate() override;
-    struct Taps { std::vector<float> eq, knobs; };
-    Taps designTaps() const;
+    std::vector<float> designKnobTaps() const;
     int sourceIndexFor (int guitar, int position) const;
     void processSlice (float* const* data, int numChannels, int n);
 
@@ -75,24 +75,24 @@ private:
     juce::SmoothedValue<float> inputGain { 1.0f };
     juce::SmoothedValue<float> outputGain { 1.0f };
 
-    static constexpr int kSlice = fourreal::NgmStream::kChunk;
+    static constexpr int kSlice = 512;
 
-    fourreal::NgmModel ngm;
-    bool ngmLoaded = false;
-    fourreal::NgmStream stream[2];
-    fourreal::CrossfadeFir eqFir, knobFir;
-    Taps pendingTaps;
+    fourreal::SpecModel spec;
+    bool specLoaded = false;
+    fourreal::SpecStream stream[2];
+    fourreal::CrossfadeFir knobFir;
+    std::vector<float> pendingKnobTaps;
     juce::SpinLock tapsLock;
     std::atomic<bool> tapsReady { false };
     int activeTarget = -1, activeSource = -1;
     bool bypassed = false;
 
-    // auto level: a slow estimate of the input level, so the network sees roughly the level it was trained at
+    // auto level: a slow estimate of the input level, so the network analyses roughly the level it was trained at
+    // (only the analysis is scaled; the filter always acts on the real signal)
     float levelPower = -1.0f, autoGain = 1.0f;
     juce::SmoothedValue<float> wetMix { 1.0f };
-    std::vector<float> work[2], dry[2], pre[2];
-    float prevAmount = 0.0f;
-    bool netIdle = true;
+    std::vector<float> work[2], dry[2];
+    bool engineIdle = true;
     double currentSampleRate = 48000.0;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FourRealAudioProcessor)

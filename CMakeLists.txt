@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.22)
 
-project(FourRealAudio VERSION 0.5.1 LANGUAGES C CXX)
+project(FourRealAudio VERSION 0.6.0 LANGUAGES C CXX)
 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -53,10 +53,11 @@ set(FOURREAL_SOURCES
     Source/dsp/FilterDesign.cpp
     Source/dsp/FilterDesign.h
     Source/dsp/CrossfadeFir.h
-    Source/dsp/NgmModel.cpp
-    Source/dsp/NgmModel.h
-    Source/dsp/NgmEngine.cpp
-    Source/dsp/NgmEngine.h)
+    Source/dsp/MiniJson.h
+    Source/dsp/SpecModel.cpp
+    Source/dsp/SpecModel.h
+    Source/dsp/SpecEngine.cpp
+    Source/dsp/SpecEngine.h)
 
 function(fourreal_add_plugin MODEL)
     set(target FourReal_${MODEL})
@@ -75,11 +76,11 @@ function(fourreal_add_plugin MODEL)
 
     target_sources(${target} PRIVATE ${FOURREAL_SOURCES})
 
-    # The trained network for this target guitar (a .ngm file), embedded in the plugin as NgmData::model_ngm.
+    # The trained model for this target guitar (a .spm file), embedded in the plugin as SpmData::model_spm.
     juce_add_binary_data(${target}_Data
-        HEADER_NAME NgmData.h
-        NAMESPACE   NgmData
-        SOURCES     models/${MODEL}/model.ngm)
+        HEADER_NAME SpmData.h
+        NAMESPACE   SpmData
+        SOURCES     models/${MODEL}/model.spm)
 
     target_compile_definitions(${target} PUBLIC
         FOURREAL_MODEL_${MODEL}=1
@@ -114,10 +115,9 @@ if(FOURREAL_BUILD_TESTS)
         Source/dsp/FilterDesign.cpp)
     target_include_directories(dsp_test PRIVATE Source/dsp)
 
-    add_executable(ngm_test
-        tests/ngm_test.cpp
-        Source/dsp/NgmModel.cpp
-        Source/dsp/NgmEngine.cpp
-        Source/dsp/FilterDesign.cpp)
-    target_include_directories(ngm_test PRIVATE Source/dsp)
+    add_executable(spm_test
+        tests/spm_test.cpp
+        Source/dsp/SpecModel.cpp
+        Source/dsp/SpecEngine.cpp)
+    target_include_directories(spm_test PRIVATE Source/dsp)
 endif()

@@ -1,7 +1,7 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-#include <NgmData.h>
+#include <SpmData.h>
 
 #include <cstring>
 
@@ -82,11 +82,11 @@ FourRealAudioProcessor::FourRealAudioProcessor()
 {
     {
         std::string error;
-        ngmLoaded = fourreal::NgmModel::load (NgmData::model_ngm, static_cast<size_t> (NgmData::model_ngmSize), ngm, error);
-        jassert (ngmLoaded); // the embedded .ngm must always parse
-        if (ngmLoaded)
+        specLoaded = fourreal::SpecModel::load (SpmData::model_spm, static_cast<size_t> (SpmData::model_spmSize), spec, error);
+        jassert (specLoaded); // the embedded .spm must always parse
+        if (specLoaded)
             for (auto& st : stream)
-                st.prepare (ngm);
+                st.prepare (spec, 48000.0);
     }
 
     const auto& target = targetModel();
@@ -125,9 +125,9 @@ juce::AudioProcessorValueTreeState::ParameterLayout FourRealAudioProcessor::crea
     params.push_back (std::make_unique<AudioParameterBool> (ParameterID { "voicing", 1 }, "Voicing", true));
     params.push_back (std::make_unique<AudioParameterBool> (ParameterID { "keepLevel", 1 }, "Keep level difference", true));
     params.push_back (std::make_unique<AudioParameterBool> (ParameterID { "autoLevel", 1 }, "Auto level", true));
-    // How much of the network's residual is added on top of the per-pair EQ (0 = EQ only, 100 = full network).
+    // How strongly the learned tone change is applied: 0 = off, 100 = as trained, above 100 exaggerates it.
     params.push_back (std::make_unique<AudioParameterFloat> (
-        ParameterID { "neural", 1 }, "Neural amount", NormalisableRange<float> (0.0f, 100.0f, 1.0f), 25.0f,
+        ParameterID { "intensity", 1 }, "Intensity", NormalisableRange<float> (0.0f, 150.0f, 1.0f), 100.0f,
         AudioParameterFloatAttributes().withLabel ("%")));
 
     StringArray sourceNames;
@@ -164,30 +164,20 @@ int FourRealAudioProcessor::sourceIndexFor (int guitar, int position) const
     const auto& models = fourreal::allModels();
     const auto& g = models[static_cast<size_t> (juce::jlimit (0, (int) models.size() - 1, guitar))];
     const int pos = juce::jlimit (0, (int) g.positions.size() - 1, position);
-    const int idx = ngmLoaded ? ngm.findSource (g.code, pos) : -1;
+    const int idx = specLoaded ? spec.findSource (g.code, pos) : -1;
     jassert (idx >= 0);
     return idx >= 0 ? idx : 0;
 }
 
-FourRealAudioProcessor::Taps FourRealAudioProcessor::designTaps() const
+std::vector<float> FourRealAudioProcessor::designKnobTaps() const
 {
     auto get = [this] (const char* id) { return apvts.getRawParameterValue (id)->load(); };
     using namespace fourreal;
 
-    Taps taps;
     const int tgtSel = static_cast<int> (get ("tgtSel") + 0.5f);
-    const int target = juce::jlimit (0, juce::jmax (0, ngm.numTargets - 1), tgtSel);
 
-    // 1) per-pair EQ from the .ngm
-    if (ngmLoaded)
-        taps.eq = designEqTaps (ngm, target, sourceIndexFor (static_cast<int> (get ("srcGuitar") + 0.5f),
-                                                              static_cast<int> (get ("srcPos") + 0.5f)),
-                                currentSampleRate);
-    else
-        taps.eq = identityTaps();
-
-    // 2) volume / tone knobs of the target guitar: physical model, "knobs now" relative to "knobs full"
-    //    (the network was trained with the knobs full, so at full knobs this is the identity).
+    // volume / tone knobs of the target guitar: physical model, "knobs now" relative to "knobs full"
+    // (the model was trained with the knobs full, so at full knobs this is the identity).
     const auto grid = makeFrequencyGrid (currentSampleRate);
     const auto& targetDef = targetModel();
     ModelSettings full, now;
@@ -202,9 +192,8 @@ FourRealAudioProcessor::Taps FourRealAudioProcessor::designTaps() const
         full.tones.push_back (10.0);
         now.tones.push_back (get (toneId (i).toRawUTF8()));
     }
-    taps.knobs = designVoicingTaps (modelResponse (grid, targetDef, full), modelResponse (grid, targetDef, now),
-                                    grid, currentSampleRate, get ("keepLevel") > 0.5f);
-    return taps;
+    return designVoicingTaps (modelResponse (grid, targetDef, full), modelResponse (grid, targetDef, now),
+                              grid, currentSampleRate, get ("keepLevel") > 0.5f);
 }
 
 void FourRealAudioProcessor::parameterChanged (const juce::String&, float)
@@ -214,10 +203,10 @@ void FourRealAudioProcessor::parameterChanged (const juce::String&, float)
 
 void FourRealAudioProcessor::handleAsyncUpdate()
 {
-    auto taps = designTaps();
+    auto taps = designKnobTaps();
     {
         const juce::SpinLock::ScopedLockType lock (tapsLock);
-        pendingTaps = std::move (taps);
+        pendingKnobTaps = std::move (taps);
     }
     tapsReady.store (true);
 }
@@ -238,27 +227,27 @@ void FourRealAudioProcessor::prepareToPlay (double sampleRate, int /*samplesPerB
     wetMix.reset (sampleRate, 0.03);
     wetMix.setCurrentAndTargetValue (on ? 1.0f : 0.0f);
 
-    eqFir.prepare (2, fourreal::kVoicingTaps, kSlice);
     knobFir.prepare (2, fourreal::kVoicingTaps, kSlice);
     for (int c = 0; c < 2; ++c)
     {
         work[c].assign (static_cast<size_t> (kSlice), 0.0f);
         dry[c].assign (static_cast<size_t> (kSlice), 0.0f);
-        pre[c].assign (static_cast<size_t> (kSlice), 0.0f);
     }
-    prevAmount = 0.0f;
-    netIdle = true;
+    engineIdle = true;
 
-    if (ngmLoaded)
+    if (specLoaded)
         for (auto& st : stream)
+        {
+            st.prepare (spec, sampleRate);
             st.reset();
+        }
     activeTarget = activeSource = -1;
     levelPower = -1.0f;
     autoGain = 1.0f;
 
     {
         const juce::SpinLock::ScopedLockType lock (tapsLock);
-        pendingTaps = designTaps();
+        pendingKnobTaps = designKnobTaps();
     }
     tapsReady.store (true);
 }
@@ -290,8 +279,7 @@ void FourRealAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
         const juce::SpinLock::ScopedTryLockType lock (tapsLock);
         if (lock.isLocked())
         {
-            eqFir.setTaps (pendingTaps.eq.data());
-            knobFir.setTaps (pendingTaps.knobs.data());
+            knobFir.setTaps (pendingKnobTaps.data());
             tapsReady.store (false);
         }
     }
@@ -321,14 +309,14 @@ void FourRealAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
 void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, int n)
 {
     // Which (target position, source cell) pair is selected right now.
-    const int target = juce::jlimit (0, juce::jmax (0, ngm.numTargets - 1),
+    const int target = juce::jlimit (0, juce::jmax (0, spec.numTargets - 1),
                                      static_cast<int> (apvts.getRawParameterValue ("tgtSel")->load() + 0.5f));
     const int source = sourceIndexFor (static_cast<int> (apvts.getRawParameterValue ("srcGuitar")->load() + 0.5f),
                                        static_cast<int> (apvts.getRawParameterValue ("srcPos")->load() + 0.5f));
-    if (ngmLoaded && (target != activeTarget || source != activeSource))
+    if (specLoaded && (target != activeTarget || source != activeSource))
     {
         for (auto& st : stream)
-            st.setCondition (target, source, activeTarget < 0);
+            st.setCondition (target, source);
         activeTarget = target;
         activeSource = source;
     }
@@ -342,12 +330,12 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
     if (bypassed)
     {
         bypassed = false;
-        if (ngmLoaded)
+        if (specLoaded)
             for (auto& st : stream)
                 st.reset();
     }
 
-    // A guitar is usually mono: when both channels are identical, run the network once.
+    // A guitar is usually mono: when both channels are identical, run the engine once.
     const bool dualMono = numChannels == 2
         && std::memcmp (data[0], data[1], sizeof (float) * static_cast<size_t> (n)) == 0;
     const int active = dualMono ? 1 : numChannels;
@@ -358,11 +346,10 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
         for (int c = 0; c < active; ++c)
             std::copy (data[c], data[c] + n, dry[c].begin());
 
-    // --- auto level: estimate the input level slowly (only while there is signal), and bring it to the level
-    //     the network was trained at; the gain is undone after the network, so dynamics stay intact.
+    // --- auto level: estimate the input level slowly (only while there is signal) so the network analyses roughly the
+    //     level it was trained at. Only the analysis is scaled: the filter acts on the real signal, so dynamics stay intact.
     const float sr = static_cast<float> (currentSampleRate);
-    const bool autoOn = apvts.getRawParameterValue ("autoLevel")->load() > 0.5f && ngmLoaded;
-    float gStart = autoGain, gEnd = 1.0f;
+    const bool autoOn = apvts.getRawParameterValue ("autoLevel")->load() > 0.5f && specLoaded;
     if (autoOn)
     {
         float pw = 0.0f;
@@ -383,54 +370,40 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
         float wanted = 1.0f;
         if (levelPower > 0.0f)
         {
-            const float refPower = std::pow (10.0f, ngm.referenceRmsDb / 10.0f);
+            const float refPower = std::pow (10.0f, spec.referenceRmsDb / 10.0f);
             wanted = juce::jlimit (0.0631f, 63.1f, std::sqrt (refPower / levelPower)); // +-24 dB .. +36 dB
         }
         autoGain += (wanted - autoGain) * (1.0f - std::exp (-static_cast<float> (n) / (0.5f * sr)));
-        gEnd = autoGain;
     }
     else
-    {
         autoGain = 1.0f;
-        gEnd = 1.0f;
-    }
+
+    // Intensity of the learned tone change. Playing the target guitar's own selected pickup through itself changes nothing.
+    float intensity = apvts.getRawParameterValue ("intensity")->load() * 0.01f;
+    if (specLoaded && spec.sources[static_cast<size_t> (source)].cell == spec.targetCells[static_cast<size_t> (target)])
+        intensity = 0.0f;
 
     float* wk[2] = { work[0].data(), work[1].data() };
     for (int c = 0; c < active; ++c)
-        for (int i = 0; i < n; ++i)
-            wk[c][i] = data[c][i] * (gStart + (gEnd - gStart) * static_cast<float> (i) / static_cast<float> (n));
+        std::copy (data[c], data[c] + n, wk[c]);
 
-    eqFir.process (wk, active, n);
-
-    // Neural residual on top of the EQ, blended by the "Neural amount" knob. At 0 % the network is not run at all.
-    const float amount = apvts.getRawParameterValue ("neural")->load() * 0.01f;
-    if (ngmLoaded && (amount > 0.001f || prevAmount > 0.001f))
+    if (specLoaded && intensity > 0.001f)
     {
-        if (netIdle)
+        if (engineIdle)
         {
             for (auto& st : stream)
-                st.reset(); // the streams' history is stale after being idle
-            netIdle = false;
+                st.reset(); // history is stale after being idle
+            engineIdle = false;
         }
         for (int c = 0; c < active; ++c)
         {
-            std::copy (wk[c], wk[c] + n, pre[c].begin());
+            stream[c].setIntensity (intensity);
+            stream[c].setAnalysisGain (autoGain);
             stream[c].process (wk[c], wk[c], n);
-            for (int i = 0; i < n; ++i)
-            {
-                const float a = prevAmount + (amount - prevAmount) * static_cast<float> (i + 1) / static_cast<float> (n);
-                const float x = pre[c][static_cast<size_t> (i)];
-                wk[c][i] = x + a * (wk[c][i] - x);
-            }
         }
     }
     else
-        netIdle = true;
-    prevAmount = amount;
-
-    for (int c = 0; c < active; ++c)
-        for (int i = 0; i < n; ++i)
-            wk[c][i] /= (gStart + (gEnd - gStart) * static_cast<float> (i) / static_cast<float> (n));
+        engineIdle = true;
 
     knobFir.process (wk, active, n);
 

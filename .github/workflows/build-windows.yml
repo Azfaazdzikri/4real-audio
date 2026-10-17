@@ -14,12 +14,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build and run DSP + neural engine tests
+      - name: Build and run DSP + spectral engine tests
         run: |
           g++ -std=c++20 -O2 -ISource/dsp tests/dsp_test.cpp Source/dsp/GuitarCircuit.cpp Source/dsp/GuitarModels.cpp Source/dsp/FilterDesign.cpp -o dsp_test
           ./dsp_test
-          g++ -std=c++20 -O2 -ISource/dsp tests/ngm_test.cpp Source/dsp/NgmModel.cpp Source/dsp/NgmEngine.cpp Source/dsp/FilterDesign.cpp -o ngm_test
-          for c in LP STR FLC; do ./ngm_test models/$c/model.ngm tests/golden/golden_$c.json; done
+          g++ -std=c++20 -O2 -ISource/dsp tests/spm_test.cpp Source/dsp/SpecModel.cpp Source/dsp/SpecEngine.cpp -o spm_test
+          for c in LP STR FLC; do ./spm_test models/$c/model.spm tests/golden/golden_spm_$c.json; done
+          for c in 335 SG PRS RIC TCR; do test -s models/$c/model.spm; done
 
   build:
     runs-on: windows-latest

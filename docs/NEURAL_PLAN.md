@@ -65,3 +65,21 @@ the output is the input filtered (no added distortion or noise by construction).
 - Tools: `train_spec.py` (train + held-out evaluation), `listen.py` (writes source / static / model / target wavs for A/B listening and checks that
   the filtered audio scores like the training evaluation), `spec_numpy.py` (exact reference of the plugin algorithm, to port to C++),
   notebook `colab_stage4_spec.ipynb`.
+
+## v0.6.0 - spectral model in the plugin (v3 model, v4 tried and dropped)
+
+- v2 (waveform TCN) is removed from the plugin: it generated harmonics (about -11 dB distortion on a sine) because it was trained
+  on unaligned pairs with a spectral loss only.
+- The plugin now runs the v3 spectral model (`results-spec2`, tapered static EQ, shape error 7.25 -> 4.49 (static EQ) -> 4.14 (model)
+  on 462 held-out pairs, 64 bands, 100 Hz - 16 kHz): per hop of 512 samples, the last 4096 samples -> 64-band spectrum -> small
+  causal conv net -> dynamic correction + static per-pair EQ -> 1024-tap minimum-phase FIR, crossfaded over the hop.
+  The output is always the input filtered: no distortion, no added noise, zero latency. About 7 % of one core per channel.
+- `training/nn/export_spec.py model.pt models/` writes `models/<CODE>/model.spm` (JSON, embedded in the plugin as `SpmData::model_spm`)
+  and golden vectors `tests/golden/golden_spm_<CODE>.json`; `tests/spm_test.cpp` checks the C++ engine against the numpy reference
+  (`spec_numpy.py`): the filtered audio matches to about -133 dB, the gain curves to 0.0000 dB.
+- Plugin parameter `intensity` (0-150 %, default 100) multiplies the gain curve before the filter design. Choosing the target's own
+  pickup as the source gives intensity 0 (no change).
+- v4 (162 fine bands + across-frequency conv net, `FOURREAL_BANDS=hi`, `train_spec.py --band-ch 8`) gave no gain: 4.08 vs 4.13 on the
+  same 64-band metric after 3.3 h of CPU training. Fine harmonic detail does not generalise from unaligned pairs.
+- Next idea: physics-informed model (pickup position comb filter, aperture, resonance/loading) fitted to the data for single notes,
+  plus aligned data (two pickups recorded at once, or a repeatable string excitation) for waveform-level modelling.
