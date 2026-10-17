@@ -5,13 +5,31 @@ same 64 log-spaced bands (70 Hz - 19 kHz) used by the evaluation metric. The mod
 a gain curve (dB per band) that is applied to the input as a minimum-phase FIR filter: the output is always
 the input filtered, so it cannot add distortion or noise (unlike the waveform-generating v1/v2 networks).
 """
+import os
+
 import numpy as np
 
 RATE = 48000
 NFFT = 4096
 HOP = 512
-N_BANDS = 64
-EDGES = np.geomspace(70.0, 19000.0, N_BANDS + 1)
+EDGES64 = np.geomspace(70.0, 19000.0, 65)          # the v3 bands (also used to compare v4 with v3)
+CENTERS64 = np.sqrt(EDGES64[:-1] * EDGES64[1:])
+
+
+def _hires_edges(per_octave=24):
+    """v4 bands: 1/24 octave, but never narrower than one FFT bin (11.7 Hz) so low bands stay linear."""
+    bin_hz = RATE / NFFT
+    e = [70.0]
+    while e[-1] < 19000.0:
+        e.append(e[-1] + max(bin_hz, e[-1] * (2.0 ** (1.0 / per_octave) - 1.0)))
+    e = [v for v in e if v < 19000.0] + [19000.0]
+    return np.array(e)
+
+
+# FOURREAL_BANDS=64 (default, the v3 model) or 160 / "hi" (the v4 model with fine frequency resolution)
+HI_RES = os.environ.get("FOURREAL_BANDS", "64") not in ("64", "")
+EDGES = _hires_edges() if HI_RES else EDGES64
+N_BANDS = len(EDGES) - 1
 CENTERS = np.sqrt(EDGES[:-1] * EDGES[1:])
 RANGE = (CENTERS >= 150) & (CENTERS <= 8000)
 WINDOW = np.hanning(NFFT + 1)[:-1]  # periodic Hann (same as torch.hann_window)
@@ -21,7 +39,7 @@ _W = None
 
 
 def band_matrix():
-    """(NFFT/2+1, 64): power-spectrum bins -> band means. Bands narrower than one bin use the nearest bin."""
+    """(NFFT/2+1, N_BANDS): power-spectrum bins -> band means. Bands narrower than one bin use the nearest bin."""
     global _W
     if _W is None:
         freqs = np.fft.rfftfreq(NFFT, 1.0 / RATE)
@@ -34,6 +52,26 @@ def band_matrix():
             W[sel, i] = 1.0 / sel.sum()
         _W = W
     return _W
+
+
+_C = None
+
+
+def coarsen_db(x_db):
+    """(..., N_BANDS) band dB -> (..., 64) dB of the v3 bands (power mean of the fine bands whose centre falls in each)."""
+    global _C
+    x = np.asarray(x_db, dtype=np.float64)
+    if N_BANDS == 64:
+        return x
+    if _C is None:
+        idx = np.clip(np.searchsorted(EDGES64, CENTERS, side="right") - 1, 0, 63)
+        C = np.zeros((N_BANDS, 64))
+        C[np.arange(N_BANDS), idx] = 1.0
+        for j in range(64):                       # a coarse band without any fine band centre: nearest fine band
+            if C[:, j].sum() == 0:
+                C[int(np.argmin(np.abs(CENTERS - CENTERS64[j]))), j] = 1.0
+        _C = C / C.sum(0, keepdims=True)
+    return 10.0 * np.log10((10.0 ** (x / 10.0)) @ _C + 1e-14)
 
 
 def num_frames(n_samples):
@@ -66,13 +104,13 @@ def clip_db(frames_db):
 
 
 def band_gain_to_bins(gain_db, n_fft, rate=RATE):
-    """64-band gain curve (dB) -> gain per FFT bin: linear in Hz between band centres, edge values held."""
+    """band gain curve (dB) -> gain per FFT bin: linear in Hz between band centres, edge values held."""
     f = np.fft.rfftfreq(n_fft, 1.0 / rate)
     return np.interp(f, CENTERS, gain_db)
 
 
 def min_phase_fir(gain_db, taps=1024, n_fft=8192, rate=RATE):
-    """Minimum-phase FIR (taps) whose magnitude follows the 64-band gain curve (cepstral method)."""
+    """Minimum-phase FIR (taps) whose magnitude follows the band gain curve (cepstral method)."""
     mag_db = band_gain_to_bins(gain_db, n_fft, rate)
     log_mag = mag_db / 20.0 * np.log(10.0)
     full = np.concatenate([log_mag, log_mag[-2:0:-1]])           # even-symmetric log magnitude

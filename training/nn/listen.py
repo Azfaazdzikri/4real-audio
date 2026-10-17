@@ -20,8 +20,7 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 sys.path.insert(0, str(HERE.parent))
-from metrics import diff  # noqa: E402
-from spec_metrics import rms_wide  # noqa: E402
+from spec_metrics import rms_wide, rms_wide64  # noqa: E402
 from preprocess_wav import read_wav, to_mono, trim, write_wav24  # noqa: E402
 from spec_common import RATE, clip_db, frame_bands_db  # noqa: E402
 from spec_numpy import SpecNumpy, process  # noqa: E402
@@ -51,7 +50,7 @@ def main() -> int:
     args = ap.parse_args()
 
     ck = torch.load(args.model, map_location="cpu")
-    net = SpecEQ(len(ck["cells"]), ch=ck["ch"], dilations=ck["dilations"])
+    net = SpecEQ(len(ck["cells"]), ch=ck["ch"], dilations=ck["dilations"], band_ch=ck.get("band_ch", 0))
     net.load_state_dict(ck["model"])
     net.eval()
     state = {k: v.numpy() for k, v in ck["model"].items()}
@@ -83,7 +82,7 @@ def main() -> int:
                 chosen.append(by_tech[t].pop(int(rng.integers(len(by_tech[t])))))
 
     print(f"\n{'pair':58s} {'none':>6s} {'static':>7s} {'model(train)':>13s} {'model(audio)':>13s}")
-    rows = []
+    rows, crows = [], []
     for n, (key, rs_, a, rt, b) in enumerate(chosen, 1):
         src_item, tgt_item = data.items[rs_], data.items[rt]
         x = load_clip(args.wav_root, src_item["cell"], key)
@@ -96,7 +95,6 @@ def main() -> int:
         def bands(sig, gain=0.0):
             return clip_db(frame_bands_db(sig * 10.0 ** (gain / 20.0)))
         src_b, tgt_b = bands(x, gs), bands(t, gt)
-        true_d = diff(src_b, tgt_b)
         fs_, ft_ = data.floor[a], data.floor[b]
         s_none = rms_wide(src_b, tgt_b, src_b, fs_, ft_)
         s_static = rms_wide(src_b, tgt_b, bands(y_static, gs), fs_, ft_)
@@ -110,6 +108,8 @@ def main() -> int:
         label = f"{src_item['cell'].split('|')[0][:14]} -> {tgt_item['cell'].split('|')[0][:14]} {key[:24]}"
         print(f"{label:58s} {s_none:6.2f} {s_static:7.2f} {s_train:13.2f} {s_audio:13.2f}")
         rows.append((s_none, s_static, s_train, s_audio))
+        crows.append((rms_wide64(src_b, tgt_b, src_b, fs_, ft_), rms_wide64(src_b, tgt_b, bands(y_static, gs), fs_, ft_),
+                      rms_wide64(src_b, tgt_b, bands(y_model, gs), fs_, ft_)))
         d = args.out_dir / name
         write_wav24(d / "1_source.wav", np.clip(x * k, -1, 1), RATE)
         write_wav24(d / "2_static.wav", np.clip(y_static * k, -1, 1), RATE)
@@ -123,7 +123,9 @@ def main() -> int:
         ref.intensity = 1.0
         write_wav24(d / "4_target.wav", np.clip(t * 10.0 ** (gt / 20.0), -1, 1), RATE)
     m = np.nanmean(np.array(rows), axis=0)
+    cm = np.nanmean(np.array(crows), axis=0)
     print(f"\nmean: none {m[0]:.2f} | static {m[1]:.2f} | model (training eval) {m[2]:.2f} | model (real filtered audio) {m[3]:.2f}")
+    print(f"same metric on 64 coarse bands (v3 reached 8.29 | 5.84 | 5.16 on its listening pairs): none {cm[0]:.2f} | static {cm[1]:.2f} | model(audio) {cm[2]:.2f}")
     print("If 'model(audio)' is close to 'model(train)', what training measured is what the plugin will produce.")
     return 0
 

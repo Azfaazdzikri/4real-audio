@@ -8,15 +8,16 @@ noise floor, from 100 Hz up to 16 kHz.
 import numpy as np
 
 from metrics import smooth_bands
-from spec_common import CENTERS
+from spec_common import CENTERS, CENTERS64, coarsen_db
 
 MARGIN_DB = 12.0   # a band counts when it is this far above the cell's noise floor
 FREQ_OK = (CENTERS >= 100.0) & (CENTERS <= 16000.0)
+FREQ_OK64 = (CENTERS64 >= 100.0) & (CENTERS64 <= 16000.0)
 
 
-def valid_bands(src_clip, tgt_clip, floor_src, floor_tgt):
+def valid_bands(src_clip, tgt_clip, floor_src, floor_tgt, fok=None):
     return (np.asarray(src_clip) > np.asarray(floor_src) + MARGIN_DB) & \
-           (np.asarray(tgt_clip) > np.asarray(floor_tgt) + MARGIN_DB) & FREQ_OK
+           (np.asarray(tgt_clip) > np.asarray(floor_tgt) + MARGIN_DB) & (FREQ_OK if fok is None else fok)
 
 
 def diff_wide(src_clip, tgt_clip, floor_src, floor_tgt):
@@ -25,9 +26,9 @@ def diff_wide(src_clip, tgt_clip, floor_src, floor_tgt):
     return np.where(ok, smooth_bands(tgt_clip) - smooth_bands(src_clip), np.nan)
 
 
-def rms_wide(src_clip, tgt_clip, pred_clip, floor_src, floor_tgt):
+def rms_wide(src_clip, tgt_clip, pred_clip, floor_src, floor_tgt, fok=None):
     """RMS (dB) between the true and predicted difference curves, each with its mean level removed."""
-    ok = valid_bands(src_clip, tgt_clip, floor_src, floor_tgt)
+    ok = valid_bands(src_clip, tgt_clip, floor_src, floor_tgt, fok)
     if ok.sum() < 15:
         return np.nan
     s, t, p = smooth_bands(src_clip), smooth_bands(tgt_clip), smooth_bands(pred_clip)
@@ -52,3 +53,9 @@ def fill_nan(curve):
     if idx.size == 0:
         return np.zeros_like(curve)
     return np.interp(np.arange(len(curve)), idx, curve[idx])
+
+
+def rms_wide64(src_clip, tgt_clip, pred_clip, floor_src, floor_tgt):
+    """The same metric measured on the 64 coarse v3 bands, so v4 (fine bands) can be compared with the v3 numbers."""
+    c = coarsen_db
+    return rms_wide(c(src_clip), c(tgt_clip), c(pred_clip), c(floor_src), c(floor_tgt), FREQ_OK64)

@@ -1,7 +1,7 @@
 """numpy re-implementation of the SpecEQ network + the exact run-time algorithm of the plugin (reference for the C++ port).
 
 Run-time algorithm (what the plugin does, per hop of 512 samples, mono):
-  1. keep the last 4096 input samples; at every hop boundary compute the 64-band spectrum of that window (a new frame f)
+  1. keep the last 4096 input samples; at every hop boundary compute the band spectrum (64 bands v3, 162 bands v4) of that window (a new frame f)
   2. net output for frame f (needs frames <= f) = dynamic correction curve; gain for the next hop = static EQ[src, tgt] + that curve
   3. gain curve -> minimum-phase FIR (1024 taps); the output of the hop is a linear crossfade of the old and new filter
 Frame f covers samples [f*512, f*512 + 4096), so it is complete at the start of hop f + 8: hop j uses frame j - 8.
@@ -49,6 +49,31 @@ class SpecNumpy:
         level = np.clip((level + 30.0) / 30.0, -3.0, 2.0)
         return np.concatenate([shape, level], axis=-1).T  # (65, F)
 
+    def embed(self, L):
+        """Input frames (F, N) -> (ch, F): v3 = 1x1 conv on the features, v4 = convolution across frequency + dense layer."""
+        s = self.s
+        if not self.meta.get("band_ch"):
+            return self.conv(self.features(L), s["inp.weight"], s["inp.bias"], 1)
+        shape = np.clip(self.zero_mean(L), -60.0, 30.0) / 20.0                        # (F, N)
+        level = 10.0 * np.log10((10.0 ** (L / 10.0)).sum(-1, keepdims=True) + 1e-14)
+        level = np.clip((level + 30.0) / 30.0, -3.0, 2.0)                             # (F, 1)
+        h = _silu(self.freq_conv(shape[:, None, :], s["bconv1.weight"], s["bconv1.bias"], 1))
+        h = _silu(self.freq_conv(h, s["bconv2.weight"], s["bconv2.bias"], 3))         # (F, bch, N)
+        e = h.reshape(len(L), -1) @ s["binp.weight"].T + s["binp.bias"] + level @ s["linp.weight"].T + s["linp.bias"]
+        return e.T                                                                     # (ch, F)
+
+    @staticmethod
+    def freq_conv(x, w, b, dilation):
+        """'same' conv along the last axis: x (F, Cin, N), w (Cout, Cin, K) -> (F, Cout, N)."""
+        k = w.shape[2]
+        pad = (k - 1) // 2 * dilation
+        xp = np.pad(x, ((0, 0), (0, 0), (pad, pad)))
+        n = x.shape[2]
+        out = np.zeros((x.shape[0], w.shape[0], n)) + b[None, :, None]
+        for t in range(k):
+            out += np.einsum("oc,fcn->fon", w[:, :, t], xp[:, :, t * dilation: t * dilation + n])
+        return out
+
     def conv(self, x, w, b, dilation):
         """causal dilated conv: x (Cin, F), w (Cout, Cin, K)."""
         k = w.shape[2]
@@ -61,11 +86,11 @@ class SpecNumpy:
         return out
 
     def delta(self, L, src, tgt):
-        """Dynamic correction for every frame, computed from frames <= f (no lag): (F, 64) dB."""
+        """Dynamic correction for every frame, computed from frames <= f (no lag): (F, N_BANDS) dB."""
         s = self.s
         e = np.concatenate([s["emb.weight"][src], s["emb.weight"][tgt]])
         c = _silu(s["cond.0.weight"] @ e + s["cond.0.bias"])
-        h = self.conv(self.features(L), s["inp.weight"], s["inp.bias"], 1)
+        h = self.embed(L)
         skip = 0.0
         for i, d in enumerate(self.dilations):
             p = f"blocks.{i}."

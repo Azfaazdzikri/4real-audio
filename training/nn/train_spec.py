@@ -30,13 +30,12 @@ import torch.nn.functional as F
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from data import is_test_key  # noqa: E402
-from metrics import diff, rms_shape  # noqa: E402
 from spec_common import N_BANDS, PAD_DB, RANGE, clip_db  # noqa: E402
-from spec_metrics import FREQ_OK, MARGIN_DB, diff_wide, fill_nan, rms_curve, rms_wide  # noqa: E402
+from spec_metrics import FREQ_OK, MARGIN_DB, diff_wide, rms_wide, rms_wide64  # noqa: E402
 
 EQ_LIMIT_DB = 15.0
 MAX_DELTA_DB = 8.0
-N_CTRL = 20       # the dynamic correction is a smooth curve through 20 control points (linear in log frequency)
+N_CTRL = 20 if N_BANDS == 64 else 96   # the dynamic correction is a smooth curve through 20 control points (linear in log frequency)
 LAG = 4           # frames: the gain used for frame f comes from frames <= f - LAG (analysis -> filter delay)
 SEG = 16          # frames per loss segment (16 x 10.7 ms = 170 ms)
 FEATURES = N_BANDS + 1
@@ -61,12 +60,18 @@ class Block(nn.Module):
 
 
 class SpecEQ(nn.Module):
-    def __init__(self, n_cells, ch=32, dilations=(1, 2, 4, 8), eq_init=None, emb=16, cond=32):
+    def __init__(self, n_cells, ch=32, dilations=(1, 2, 4, 8), eq_init=None, emb=16, cond=32, band_ch=0):
         super().__init__()
-        self.n_cells, self.ch, self.dilations = n_cells, ch, tuple(dilations)
+        self.n_cells, self.ch, self.dilations, self.band_ch = n_cells, ch, tuple(dilations), band_ch
         self.emb = nn.Embedding(n_cells, emb)
         self.cond = nn.Sequential(nn.Linear(2 * emb, cond), nn.SiLU())
-        self.inp = nn.Conv1d(FEATURES, ch, 1)
+        if band_ch:   # v4: convolve ACROSS frequency first so the net sees harmonic peaks / notches of the played note
+            self.bconv1 = nn.Conv1d(1, band_ch, 7, padding=3)
+            self.bconv2 = nn.Conv1d(band_ch, band_ch, 7, padding=9, dilation=3)
+            self.binp = nn.Linear(band_ch * N_BANDS, ch)
+            self.linp = nn.Linear(1, ch)
+        else:
+            self.inp = nn.Conv1d(FEATURES, ch, 1)
         self.blocks = nn.ModuleList([Block(ch, d, cond) for d in dilations])
         self.head = nn.Sequential(nn.SiLU(), nn.Conv1d(ch, N_CTRL, 1))
         nn.init.zeros_(self.head[1].weight)
@@ -88,17 +93,32 @@ class SpecEQ(nn.Module):
     def eq_curve_db(self, src, tgt):
         return self.zero_mean(self.eq[src, tgt].clamp(-EQ_LIMIT_DB, EQ_LIMIT_DB))
 
-    def features(self, L):
-        """L: (B, F, 64) band dB of the INPUT -> (B, 65, F): shape (mean removed) and a level cue."""
+    def shape_level(self, L):
+        """L: (B, F, N) band dB of the INPUT -> shape (mean removed, scaled) (B, F, N) and a level cue (B, F, 1)."""
         shape = (self.zero_mean(L)).clamp(-60.0, 30.0) / 20.0
         level = 10.0 * torch.log10((10.0 ** (L / 10.0)).sum(-1, keepdim=True) + 1e-14)
         level = ((level + 30.0) / 30.0).clamp(-3.0, 2.0)
+        return shape, level
+
+    def features(self, L):
+        shape, level = self.shape_level(L)
         return torch.cat([shape, level], dim=-1).transpose(1, 2)
+
+    def embed(self, L):
+        """Input frames -> (B, ch, F) channels for the temporal network."""
+        if not self.band_ch:
+            return self.inp(self.features(L))
+        B, Fn, _ = L.shape
+        shape, level = self.shape_level(L)
+        h = F.silu(self.bconv1(shape.reshape(B * Fn, 1, N_BANDS)))
+        h = F.silu(self.bconv2(h))
+        e = self.binp(h.reshape(B * Fn, -1)) + self.linp(level.reshape(B * Fn, 1))
+        return e.reshape(B, Fn, -1).transpose(1, 2)
 
     def delta_raw(self, L, src, tgt):
         """Dynamic correction computed from frames <= f (no lag yet): (B, F, 64) dB, zero-mean per frame."""
         c = self.cond(torch.cat([self.emb(src), self.emb(tgt)], dim=-1))
-        h = self.inp(self.features(L))
+        h = self.embed(L)
         skip = 0
         for blk in self.blocks:
             h, s = blk(h, c)
@@ -122,6 +142,8 @@ class FrameData:
         data_dir = Path(data_dir)
         meta = json.loads((data_dir / "index.json").read_text(encoding="utf-8"))
         self.frames = np.load(data_dir / "frames.npy")
+        if self.frames.shape[-1] != N_BANDS:
+            raise SystemExit(f"frames have {self.frames.shape[-1]} bands but FOURREAL_BANDS selects {N_BANDS}: prepare the data with the same setting")
         self.items, self.cells = meta["items"], meta["cells"]
         self.cell_id = {c: i for i, c in enumerate(self.cells)}
         self.nf = np.array([it["nf"] for it in self.items])
@@ -253,7 +275,9 @@ class Evaluator:
     def eq_init(self, path):
         """Static EQ for every pair. Bands that cannot be measured keep the nearest measured value (no cliffs)."""
         if path.exists():
-            return np.load(path)
+            t = np.load(path)
+            if t.shape[-1] == N_BANDS:
+                return t
         n = len(self.d.cells)
         table = np.zeros((n, n, N_BANDS), dtype=np.float32)
         with warnings.catch_warnings():
@@ -268,13 +292,11 @@ class Evaluator:
 
     @torch.no_grad()
     def run(self, model):
-        from metrics import diff, rms_shape  # legacy metric, kept so numbers stay comparable with earlier runs
         model.eval()
         names = ("none", "static_eq", "model")
-        wide = {k: [] for k in names}
-        legacy = {k: [] for k in names}
+        wide = {k: [] for k in names}      # on the model's own bands (64 for v3, 162 for v4)
+        coarse = {k: [] for k in names}    # same metric on 64 coarse bands: comparable between v3 and v4
         by_tech = {}
-        eq_table = model.eq.detach().cpu().numpy()
         for key, rs, a, rt, b in self.pairs:
             nf = int(self.d.nf[rs])
             L = torch.from_numpy(self.d.frames[rs, :nf].astype(np.float32))[None].to(self.device)
@@ -283,23 +305,21 @@ class Evaluator:
             src, tgt = self.d.clip[rs], self.d.clip[rt]
             fs, ft = self.d.floor[a], self.d.floor[b]
             tech = key.split("/")[0]
-            static = self.tapered_eq(a, b)
-            w = (rms_wide(src, tgt, src, fs, ft), rms_wide(src, tgt, clip_db(L[0].cpu().numpy()) + static, fs, ft),
-                 rms_wide(src, tgt, pred, fs, ft))
-            true_d = diff(src, tgt)
-            lg = (rms_shape(true_d, np.zeros(N_BANDS)), rms_shape(true_d, static),
-                  rms_shape(true_d, diff(src, pred)))
-            for name, v1, v2 in zip(names, w, lg):
+            static_pred = clip_db(L[0].cpu().numpy()) + self.tapered_eq(a, b)
+            preds = (src, static_pred, pred)
+            w = tuple(rms_wide(src, tgt, p, fs, ft) for p in preds)
+            c = tuple(rms_wide64(src, tgt, p, fs, ft) for p in preds)
+            for name, v1, v2 in zip(names, w, c):
                 wide[name].append(v1)
-                legacy[name].append(v2)
+                coarse[name].append(v2)
             by_tech.setdefault(tech, []).append(w)
         model.train()
-        out = {"n_pairs": len(self.pairs)}
+        out = {"n_pairs": len(self.pairs), "bands": N_BANDS}
         for k in names:
-            out[k] = float(np.nanmean(wide[k]))              # main number: the wide metric
-            out["legacy_" + k] = float(np.nanmean(legacy[k]))  # the old metric (45 dB below peak, 150-8000 Hz)
-        out["by_technique"] = {t: {"none": float(np.nanmean([s[0] for s in v])), "static_eq": float(np.nanmean([s[1] for s in v])),
-                                   "model": float(np.nanmean([s[2] for s in v])), "n": len(v)} for t, v in by_tech.items()}
+            out[k] = float(np.nanmean(wide[k]))
+            out["coarse_" + k] = float(np.nanmean(coarse[k]))
+        out["by_technique"] = {t: {"none": float(np.nanmean([s_[0] for s_ in v])), "static_eq": float(np.nanmean([s_[1] for s_ in v])),
+                                   "model": float(np.nanmean([s_[2] for s_ in v])), "n": len(v)} for t, v in by_tech.items()}
         return out
 
 
@@ -310,6 +330,7 @@ def main() -> int:
     ap.add_argument("--steps", type=int, default=6000)
     ap.add_argument("--batch", type=int, default=16)
     ap.add_argument("--ch", type=int, default=32)
+    ap.add_argument("--band-ch", type=int, default=0, help="v4: channels of the across-frequency convolution (0 = v3 network)")
     ap.add_argument("--lr", type=float, default=2e-3)
     ap.add_argument("--eval-every", type=int, default=1000)
     ap.add_argument("--ckpt-every", type=int, default=500)
@@ -327,7 +348,7 @@ def main() -> int:
     args.out_dir.mkdir(parents=True, exist_ok=True)
     evaluator = Evaluator(data, device, np.random.default_rng(123))
     eq_init = evaluator.eq_init(args.out_dir / "eq_init.npy")
-    model = SpecEQ(len(data.cells), ch=args.ch, eq_init=eq_init).to(device)
+    model = SpecEQ(len(data.cells), ch=args.ch, eq_init=eq_init, band_ch=args.band_ch).to(device)
     print("parameters:", sum(p.numel() for p in model.parameters()), flush=True)
     other = [p for n_, p in model.named_parameters() if n_ != "eq"]
     opt = torch.optim.AdamW([{"params": other, "lr": args.lr, "weight_decay": 1e-4},
@@ -346,7 +367,8 @@ def main() -> int:
         print(f"RESUMING from step {start}", flush=True)
 
     def meta():
-        return {"cells": data.cells, "ch": args.ch, "dilations": list(model.dilations), "n_ctrl": N_CTRL, "lag": LAG,
+        return {"cells": data.cells, "ch": args.ch, "band_ch": args.band_ch, "n_bands": N_BANDS, "dilations": list(model.dilations),
+                "n_ctrl": N_CTRL, "lag": LAG,
                 "max_delta_db": MAX_DELTA_DB, "eq_limit_db": EQ_LIMIT_DB}
 
     def save_ckpt(step):
@@ -362,8 +384,8 @@ def main() -> int:
         history.append(r)
         print(f"[eval @ {step}] shape error dB (lower is better), 100 Hz-16 kHz: no change {r['none']:.2f} | static EQ {r['static_eq']:.2f}"
               f" | model {r['model']:.2f}  ({r['n_pairs']} held-out pairs, {time.time() - t0:.0f}s)", flush=True)
-        print(f"    old metric (150 Hz-8 kHz, for comparison): no change {r['legacy_none']:.2f} | static EQ {r['legacy_static_eq']:.2f}"
-              f" | model {r['legacy_model']:.2f}", flush=True)
+        print(f"    same metric on 64 coarse bands (v3 reached 7.25 | 4.48 | 4.13): no change {r['coarse_none']:.2f}"
+              f" | static EQ {r['coarse_static_eq']:.2f} | model {r['coarse_model']:.2f}", flush=True)
         for t, v in r["by_technique"].items():
             print(f"    {t:10s} n={v['n']:4d}  none {v['none']:.2f}  static {v['static_eq']:.2f}  model {v['model']:.2f}", flush=True)
         (args.out_dir / "results.json").write_text(json.dumps(history, indent=1), encoding="utf-8")
