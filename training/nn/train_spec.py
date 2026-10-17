@@ -227,6 +227,7 @@ class Evaluator:
         self.d, self.device = data, device
         self.pairs = data.test_pairs(rng)
         self.eq_cache = {}
+        self.conf_cache = {}
 
     def static_eq(self, a, b, tech=None):
         """Median (tgt - src) band difference over the TRAINING notes, NaN where never measurable."""
@@ -238,8 +239,16 @@ class Evaluator:
                 by_cell = self.d._usable(self.d.rows[key])
                 if a in by_cell and b in by_cell:
                     ds.append(diff_wide(self.d.clip[by_cell[a]], self.d.clip[by_cell[b]], self.d.floor[a], self.d.floor[b]))
-            self.eq_cache[(a, b, tech)] = np.nanmedian(np.array(ds), axis=0) if ds else np.full(N_BANDS, np.nan)
+            arr = np.array(ds) if ds else np.full((1, N_BANDS), np.nan)
+            self.eq_cache[(a, b, tech)] = np.nanmedian(arr, axis=0) if ds else np.full(N_BANDS, np.nan)
+            self.conf_cache[(a, b, tech)] = np.mean(~np.isnan(arr), axis=0)    # share of notes where the band was measurable
         return self.eq_cache[(a, b, tech)]
+
+    def tapered_eq(self, a, b):
+        """Static EQ that fades to 0 dB where a band is rarely measurable (no flat extrapolation into the noise)."""
+        med = self.static_eq(a, b)
+        conf = self.conf_cache[(a, b, None)]
+        return np.nan_to_num(med, nan=0.0) * np.clip(conf / 0.5, 0.0, 1.0)
 
     def eq_init(self, path):
         """Static EQ for every pair. Bands that cannot be measured keep the nearest measured value (no cliffs)."""
@@ -252,7 +261,7 @@ class Evaluator:
             for a in range(n):
                 for b in range(n):
                     if a != b:
-                        table[a, b] = fill_nan(self.static_eq(a, b))
+                        table[a, b] = self.tapered_eq(a, b)
         table = np.clip(table, -EQ_LIMIT_DB, EQ_LIMIT_DB)
         np.save(path, table)
         return table
@@ -274,7 +283,7 @@ class Evaluator:
             src, tgt = self.d.clip[rs], self.d.clip[rt]
             fs, ft = self.d.floor[a], self.d.floor[b]
             tech = key.split("/")[0]
-            static = fill_nan(self.static_eq(a, b))
+            static = self.tapered_eq(a, b)
             w = (rms_wide(src, tgt, src, fs, ft), rms_wide(src, tgt, clip_db(L[0].cpu().numpy()) + static, fs, ft),
                  rms_wide(src, tgt, pred, fs, ft))
             true_d = diff(src, tgt)

@@ -47,7 +47,7 @@ def main() -> int:
     ap.add_argument("out_dir", type=Path)
     ap.add_argument("--pairs", type=int, default=12)
     ap.add_argument("--seed", type=int, default=1)
-    ap.add_argument("--scales", default="1.3,1.6", help="extra files 5_x<scale>.wav with the EQ intensity multiplied (1.0 = as trained)")
+    ap.add_argument("--scales", default="0.7,1.3", help="extra files 5_x<scale>.wav with the EQ intensity multiplied (1.0 = as trained)")
     args = ap.parse_args()
 
     ck = torch.load(args.model, map_location="cpu")
