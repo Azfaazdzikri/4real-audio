@@ -47,6 +47,7 @@ def main() -> int:
     ap.add_argument("out_dir", type=Path)
     ap.add_argument("--pairs", type=int, default=12)
     ap.add_argument("--seed", type=int, default=1)
+    ap.add_argument("--scales", default="1.3,1.6", help="extra files 5_x<scale>.wav with the EQ intensity multiplied (1.0 = as trained)")
     args = ap.parse_args()
 
     ck = torch.load(args.model, map_location="cpu")
@@ -113,6 +114,13 @@ def main() -> int:
         write_wav24(d / "1_source.wav", np.clip(x * k, -1, 1), RATE)
         write_wav24(d / "2_static.wav", np.clip(y_static * k, -1, 1), RATE)
         write_wav24(d / "3_model.wav", np.clip(y_model * k, -1, 1), RATE)
+        for sc in [float(v) for v in args.scales.split(",") if v.strip()]:
+            ref.intensity = sc
+            y_sc, _ = process(ref, x, a, b, gs, dynamic=True)
+            s_sc = rms_wide(src_b, tgt_b, bands(y_sc, gs), fs_, ft_)
+            print(f"{'':58s} intensity x{sc:g}: {s_sc:.2f}")
+            write_wav24(d / f"5_x{sc:g}.wav", np.clip(y_sc * k, -1, 1), RATE)
+        ref.intensity = 1.0
         write_wav24(d / "4_target.wav", np.clip(t * 10.0 ** (gt / 20.0), -1, 1), RATE)
     m = np.nanmean(np.array(rows), axis=0)
     print(f"\nmean: none {m[0]:.2f} | static {m[1]:.2f} | model (training eval) {m[2]:.2f} | model (real filtered audio) {m[3]:.2f}")

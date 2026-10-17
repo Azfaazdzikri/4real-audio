@@ -89,7 +89,7 @@ class SpecNumpy:
         for j in range(n_hops):
             f = j - HOPS_PER_FRAME
             gains[j] = static + (d[f] if 0 <= f < len(d) else 0.0)
-        return gains
+        return gains * getattr(self, 'intensity', 1.0)
 
 
 def apply_hop_filters(x, gains, taps=1024):
