@@ -1,0 +1,98 @@
+device cpu | cells 17 | train keys 332 | test keys 77
+parameters: 215562
+[eval @ 0] shape error dB (lower is better), 100 Hz-16 kHz: no change 8.13 | static EQ 5.64 | model 5.78  (462 held-out pairs, 16s)
+    same metric on 64 coarse bands (v3 reached 7.25 | 4.48 | 4.13): no change 7.26 | static EQ 4.52 | model 4.65
+    Palm Mute  n=  78  none 8.34  static 6.21  model 6.34
+    Strum      n= 276  none 7.53  static 4.78  model 4.92
+    Sustain    n= 108  none 9.51  static 7.44  model 7.55
+step 100/6000 loss 9.986 (clip 5.724 dB, segments 8.412 dB) lr 1.01e-03 189s
+step 200/6000 loss 8.934 (clip 4.943 dB, segments 7.852 dB) lr 1.99e-03 395s
+step 300/6000 loss 9.031 (clip 5.142 dB, segments 7.648 dB) lr 1.99e-03 592s
+step 400/6000 loss 9.069 (clip 5.649 dB, segments 6.703 dB) lr 1.98e-03 789s
+step 500/6000 loss 9.480 (clip 5.435 dB, segments 7.957 dB) lr 1.97e-03 996s
+step 600/6000 loss 9.816 (clip 5.735 dB, segments 8.020 dB) lr 1.95e-03 1194s
+step 700/6000 loss 9.656 (clip 5.798 dB, segments 7.581 dB) lr 1.93e-03 1394s
+step 800/6000 loss 9.963 (clip 5.879 dB, segments 8.030 dB) lr 1.91e-03 1602s
+step 900/6000 loss 8.595 (clip 4.813 dB, segments 7.421 dB) lr 1.89e-03 1804s
+step 1000/6000 loss 9.913 (clip 5.656 dB, segments 8.362 dB) lr 1.87e-03 2003s
+[eval @ 1000] shape error dB (lower is better), 100 Hz-16 kHz: no change 8.13 | static EQ 5.64 | model 5.52  (462 held-out pairs, 16s)
+    same metric on 64 coarse bands (v3 reached 7.25 | 4.48 | 4.13): no change 7.26 | static EQ 4.52 | model 4.33
+    Palm Mute  n=  78  none 8.34  static 6.21  model 6.25
+    Strum      n= 276  none 7.53  static 4.78  model 4.65
+    Sustain    n= 108  none 9.51  static 7.44  model 7.20
+step 1100/6000 loss 7.680 (clip 4.691 dB, segments 5.850 dB) lr 1.84e-03 2226s
+step 1200/6000 loss 8.948 (clip 5.283 dB, segments 7.196 dB) lr 1.81e-03 2424s
+step 1300/6000 loss 8.886 (clip 5.345 dB, segments 6.941 dB) lr 1.78e-03 2622s
+step 1400/6000 loss 9.049 (clip 5.327 dB, segments 7.305 dB) lr 1.74e-03 2821s
+step 1500/6000 loss 8.699 (clip 4.840 dB, segments 7.582 dB) lr 1.71e-03 3020s
+step 1600/6000 loss 8.881 (clip 5.371 dB, segments 6.880 dB) lr 1.67e-03 3217s
+step 1700/6000 loss 7.745 (clip 4.711 dB, segments 5.935 dB) lr 1.63e-03 3415s
+step 1800/6000 loss 8.415 (clip 5.035 dB, segments 6.619 dB) lr 1.59e-03 3615s
+step 1900/6000 loss 9.497 (clip 5.874 dB, segments 7.104 dB) lr 1.54e-03 3814s
+step 2000/6000 loss 8.566 (clip 4.974 dB, segments 7.040 dB) lr 1.50e-03 4013s
+[eval @ 2000] shape error dB (lower is better), 100 Hz-16 kHz: no change 8.13 | static EQ 5.64 | model 5.43  (462 held-out pairs, 17s)
+    same metric on 64 coarse bands (v3 reached 7.25 | 4.48 | 4.13): no change 7.26 | static EQ 4.52 | model 4.21
+    Palm Mute  n=  78  none 8.34  static 6.21  model 6.20
+    Strum      n= 276  none 7.53  static 4.78  model 4.57
+    Sustain    n= 108  none 9.51  static 7.44  model 7.05
+step 2100/6000 loss 8.768 (clip 4.985 dB, segments 7.427 dB) lr 1.45e-03 4228s
+step 2200/6000 loss 7.645 (clip 4.458 dB, segments 6.241 dB) lr 1.41e-03 4426s
+step 2300/6000 loss 9.489 (clip 5.687 dB, segments 7.462 dB) lr 1.36e-03 4623s
+step 2400/6000 loss 8.476 (clip 4.790 dB, segments 7.232 dB) lr 1.31e-03 4821s
+step 2500/6000 loss 7.986 (clip 4.462 dB, segments 6.917 dB) lr 1.26e-03 5018s
+step 2600/6000 loss 8.940 (clip 5.185 dB, segments 7.364 dB) lr 1.21e-03 5217s
+step 2700/6000 loss 8.712 (clip 5.081 dB, segments 7.121 dB) lr 1.16e-03 5415s
+step 2800/6000 loss 8.395 (clip 4.968 dB, segments 6.719 dB) lr 1.10e-03 5613s
+step 2900/6000 loss 8.489 (clip 4.521 dB, segments 7.797 dB) lr 1.05e-03 5811s
+step 3000/6000 loss 8.940 (clip 5.306 dB, segments 7.122 dB) lr 1.00e-03 6009s
+[eval @ 3000] shape error dB (lower is better), 100 Hz-16 kHz: no change 8.13 | static EQ 5.64 | model 5.38  (462 held-out pairs, 16s)
+    same metric on 64 coarse bands (v3 reached 7.25 | 4.48 | 4.13): no change 7.26 | static EQ 4.52 | model 4.14
+    Palm Mute  n=  78  none 8.34  static 6.21  model 6.18
+    Strum      n= 276  none 7.53  static 4.78  model 4.53
+    Sustain    n= 108  none 9.51  static 7.44  model 6.96
+step 3100/6000 loss 8.011 (clip 4.745 dB, segments 6.395 dB) lr 9.48e-04 6223s
+step 3200/6000 loss 7.776 (clip 4.584 dB, segments 6.252 dB) lr 8.95e-04 6422s
+step 3300/6000 loss 7.659 (clip 4.273 dB, segments 6.655 dB) lr 8.44e-04 6622s
+step 3400/6000 loss 8.325 (clip 5.118 dB, segments 6.277 dB) lr 7.92e-04 6821s
+step 3500/6000 loss 7.383 (clip 4.349 dB, segments 5.933 dB) lr 7.41e-04 7023s
+step 3600/6000 loss 6.887 (clip 4.141 dB, segments 5.366 dB) lr 6.91e-04 7224s
+step 3700/6000 loss 8.256 (clip 4.749 dB, segments 6.872 dB) lr 6.42e-04 7422s
+step 3800/6000 loss 9.454 (clip 5.536 dB, segments 7.697 dB) lr 5.93e-04 7620s
+step 3900/6000 loss 8.067 (clip 4.864 dB, segments 6.279 dB) lr 5.46e-04 7818s
+step 4000/6000 loss 8.911 (clip 5.225 dB, segments 7.244 dB) lr 5.00e-04 8017s
+[eval @ 4000] shape error dB (lower is better), 100 Hz-16 kHz: no change 8.13 | static EQ 5.64 | model 5.35  (462 held-out pairs, 16s)
+    same metric on 64 coarse bands (v3 reached 7.25 | 4.48 | 4.13): no change 7.26 | static EQ 4.52 | model 4.10
+    Palm Mute  n=  78  none 8.34  static 6.21  model 6.17
+    Strum      n= 276  none 7.53  static 4.78  model 4.50
+    Sustain    n= 108  none 9.51  static 7.44  model 6.93
+step 4100/6000 loss 8.290 (clip 4.876 dB, segments 6.685 dB) lr 4.55e-04 8231s
+step 4200/6000 loss 8.360 (clip 4.970 dB, segments 6.633 dB) lr 4.12e-04 8429s
+step 4300/6000 loss 7.435 (clip 4.328 dB, segments 6.093 dB) lr 3.71e-04 8626s
+step 4400/6000 loss 8.842 (clip 5.329 dB, segments 6.892 dB) lr 3.31e-04 8824s
+step 4500/6000 loss 8.385 (clip 4.977 dB, segments 6.684 dB) lr 2.93e-04 9022s
+step 4600/6000 loss 8.891 (clip 5.301 dB, segments 7.047 dB) lr 2.57e-04 9218s
+step 4700/6000 loss 7.902 (clip 4.463 dB, segments 6.738 dB) lr 2.23e-04 9415s
+step 4800/6000 loss 9.185 (clip 5.492 dB, segments 7.247 dB) lr 1.91e-04 9612s
+step 4900/6000 loss 7.894 (clip 4.681 dB, segments 6.300 dB) lr 1.61e-04 9809s
+step 5000/6000 loss 7.501 (clip 4.181 dB, segments 6.505 dB) lr 1.34e-04 10005s
+[eval @ 5000] shape error dB (lower is better), 100 Hz-16 kHz: no change 8.13 | static EQ 5.64 | model 5.33  (462 held-out pairs, 16s)
+    same metric on 64 coarse bands (v3 reached 7.25 | 4.48 | 4.13): no change 7.26 | static EQ 4.52 | model 4.08
+    Palm Mute  n=  78  none 8.34  static 6.21  model 6.16
+    Strum      n= 276  none 7.53  static 4.78  model 4.49
+    Sustain    n= 108  none 9.51  static 7.44  model 6.90
+step 5100/6000 loss 8.614 (clip 5.320 dB, segments 6.456 dB) lr 1.09e-04 10218s
+step 5200/6000 loss 8.084 (clip 4.867 dB, segments 6.298 dB) lr 8.65e-05 10415s
+step 5300/6000 loss 7.782 (clip 4.672 dB, segments 6.087 dB) lr 6.64e-05 10611s
+step 5400/6000 loss 7.972 (clip 4.688 dB, segments 6.431 dB) lr 4.89e-05 10808s
+step 5500/6000 loss 9.589 (clip 5.588 dB, segments 7.865 dB) lr 3.41e-05 11005s
+step 5600/6000 loss 9.129 (clip 5.434 dB, segments 7.245 dB) lr 2.19e-05 11203s
+step 5700/6000 loss 9.351 (clip 5.468 dB, segments 7.628 dB) lr 1.23e-05 11401s
+step 5800/6000 loss 9.484 (clip 5.831 dB, segments 7.167 dB) lr 5.48e-06 11599s
+step 5900/6000 loss 8.754 (clip 5.025 dB, segments 7.314 dB) lr 1.37e-06 11796s
+step 6000/6000 loss 8.540 (clip 4.755 dB, segments 7.434 dB) lr 0.00e+00 11991s
+[eval @ 6000] shape error dB (lower is better), 100 Hz-16 kHz: no change 8.13 | static EQ 5.64 | model 5.33  (462 held-out pairs, 17s)
+    same metric on 64 coarse bands (v3 reached 7.25 | 4.48 | 4.13): no change 7.26 | static EQ 4.52 | model 4.08
+    Palm Mute  n=  78  none 8.34  static 6.21  model 6.16
+    Strum      n= 276  none 7.53  static 4.78  model 4.48
+    Sustain    n= 108  none 9.51  static 7.44  model 6.90
+done: /content/drive/MyDrive/4real_nn/spec_run4/model.pt
