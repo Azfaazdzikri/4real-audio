@@ -173,7 +173,7 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
 
     g.setColour (juce::Colours::white.withAlpha (0.5f));
     g.setFont (juce::Font (juce::FontOptions (13.0f)));
-    g.drawText ("guitar tone transformer  -  v0.6.0 test build (spectral model)",
+    g.drawText ("guitar tone transformer  -  v0.7.0 test build (spectral model + Auto source)",
                 24, 44, getWidth() - 48, 18, juce::Justification::centredLeft);
 
     auto drawMeter = [&g, this] (juce::Rectangle<int> r, float level, const juce::String& name)
