@@ -273,6 +273,18 @@ void SpecStream::prepare (const SpecModel& m, double sampleRate)
     for (int k = 0; k < hop_; ++k)
         ramp_[static_cast<size_t> (k)] = static_cast<float> (k + 1) / static_cast<float> (hop_);
 
+    // automatic source (allocated here so the audio thread never allocates)
+    const SpmAuto& au = m.autoSource;
+    autoW_.assign (static_cast<size_t> (m.numSources), 1.0 / m.numSources);
+    autoAcc_.assign (static_cast<size_t> (bands_), 0.0);
+    autoFeat_.assign (static_cast<size_t> (std::max (1, au.nMask)), 0.0);
+    autoMix_.assign (static_cast<size_t> (bands_), 0.0);
+    filmBuf_.assign (static_cast<size_t> (nBlocks_ * 4 * ch_), 0.0f);
+    condVec_.assign (static_cast<size_t> (std::max (1, au.cond)), 0.0f);
+    embMix_.assign (static_cast<size_t> (std::max (1, 2 * au.emb)), 0.0f);
+    autoDecay_ = au.present ? std::exp (-(static_cast<double> (hop_) / sampleRate_) / au.avgSeconds) : 0.99;
+    autoOn_ = false;
+
     target_ = source_ = 0;
     reset();
 }
@@ -290,6 +302,9 @@ void SpecStream::reset()
     hopPos_ = 0;
     hopIndex_ = 0;
     havePrev_ = false;
+    std::fill (autoW_.begin(), autoW_.end(), 1.0 / static_cast<double> (autoW_.size()));
+    std::fill (autoAcc_.begin(), autoAcc_.end(), 0.0);
+    autoCount_ = 0.0;
 }
 
 void SpecStream::setCondition (int target, int source)
@@ -346,7 +361,7 @@ void SpecStream::runNet()
     for (size_t c = 0; c < ch; ++c)
         h_[c] = m.inB[c] + dotProduct (m.inW.data() + c * nIn, feat_.data(), static_cast<int> (nIn));
 
-    const float* film = m.filmFor (target_, source_);
+    const float* film = autoOn_ ? filmBuf_.data() : m.filmFor (target_, source_);
     std::fill (skip_.begin(), skip_.end(), 0.0f);
     for (int bi = 0; bi < nBlocks_; ++bi)
     {
@@ -443,18 +458,114 @@ void SpecStream::designFir (std::vector<float>& rev)
     }
 }
 
+// Running spectrum of the loud frames -> soft weights over the source cells (twin of AutoSource in spec_numpy.py).
+void SpecStream::updateAuto()
+{
+    const SpmAuto& au = model_->autoSource;
+    double total = 0.0;
+    for (int b = 0; b < bands_; ++b)
+        total += std::pow (10.0, bandDb_[static_cast<size_t> (b)] / 10.0);
+    if (10.0 * std::log10 (total + 1e-14) <= static_cast<double> (au.gateDb))
+        return; // quiet frame (silence between notes): keep what was learned
+    for (int b = 0; b < bands_; ++b)
+        autoAcc_[static_cast<size_t> (b)] = autoAcc_[static_cast<size_t> (b)] * autoDecay_ + std::pow (10.0, bandDb_[static_cast<size_t> (b)] / 10.0);
+    autoCount_ = autoCount_ * autoDecay_ + 1.0;
+    if (autoCount_ < au.minFrames)
+        return;
+
+    // spectrum shape of the running mean: dB, 3-band smoothing in power (edges repeated), mean removed inside the mask
+    std::vector<double>& p = autoMix_; // scratch, bands_ values
+    for (int b = 0; b < bands_; ++b)
+        p[static_cast<size_t> (b)] = autoAcc_[static_cast<size_t> (b)] / autoCount_ + 1e-14; // mean power of the loud frames
+    size_t k = 0;
+    double mean = 0.0;
+    for (int b = 0; b < bands_; ++b)
+    {
+        if (! au.mask[static_cast<size_t> (b)])
+            continue;
+        const double a = p[static_cast<size_t> (std::max (b - 1, 0))], c = p[static_cast<size_t> (b)], d = p[static_cast<size_t> (std::min (b + 1, bands_ - 1))];
+        autoFeat_[k] = 10.0 * std::log10 ((a + c + d) / 3.0 + 1e-14);
+        mean += autoFeat_[k++];
+    }
+    mean /= au.nMask;
+    for (int i = 0; i < au.nMask; ++i)
+        autoFeat_[static_cast<size_t> (i)] -= mean;
+
+    const int S = model_->numSources;
+    double dMin = 1.0e30;
+    for (int s = 0; s < S; ++s)
+    {
+        const float* pr = au.protos.data() + static_cast<size_t> (s) * static_cast<size_t> (au.nMask);
+        double sum = 0.0;
+        for (int i = 0; i < au.nMask; ++i)
+        {
+            const double d = static_cast<double> (pr[i]) - autoFeat_[static_cast<size_t> (i)];
+            sum += d * d;
+        }
+        autoW_[static_cast<size_t> (s)] = std::sqrt (sum / au.nMask); // distance for now
+        dMin = std::min (dMin, autoW_[static_cast<size_t> (s)]);
+    }
+    double norm = 0.0;
+    for (int s = 0; s < S; ++s)
+    {
+        autoW_[static_cast<size_t> (s)] = std::exp (-(autoW_[static_cast<size_t> (s)] - dMin) / static_cast<double> (au.tauDb));
+        norm += autoW_[static_cast<size_t> (s)];
+    }
+    for (auto& w : autoW_)
+        w /= norm;
+}
+
+// FiLM vectors of every block for the MIXED source embedding (the conditioning layer is not linear, so it runs here).
+void SpecStream::autoFilm()
+{
+    const SpecModel& m = *model_;
+    const SpmAuto& au = m.autoSource;
+    const size_t E = static_cast<size_t> (au.emb), C = static_cast<size_t> (au.cond), S = static_cast<size_t> (m.numSources);
+    for (size_t e = 0; e < E; ++e)
+    {
+        double v = 0.0;
+        for (size_t s = 0; s < S; ++s)
+            v += autoW_[s] * static_cast<double> (au.embSrc[s * E + e]);
+        embMix_[e] = static_cast<float> (v);
+        embMix_[E + e] = au.embTgt[static_cast<size_t> (target_) * E + e];
+    }
+    for (size_t o = 0; o < C; ++o)
+        condVec_[o] = siluf (au.condB[o] + dotProduct (au.condW.data() + o * 2 * E, embMix_.data(), static_cast<int> (2 * E)));
+    const size_t n = static_cast<size_t> (4 * ch_);
+    for (size_t b = 0; b < static_cast<size_t> (nBlocks_); ++b)
+        for (size_t o = 0; o < n; ++o)
+            filmBuf_[b * n + o] = au.filmB[b][o] + dotProduct (au.filmW[b].data() + o * C, condVec_.data(), static_cast<int> (C));
+}
+
 void SpecStream::startHop()
 {
     const SpecModel& m = *model_;
-    const float* eq = m.eqFor (target_, source_);
     const bool haveFrame = hopIndex_ >= framesPerWindow_;
     if (haveFrame)
     {
         analyse();
+        if (autoOn_)
+        {
+            updateAuto();
+            autoFilm();
+        }
         runNet();
     }
+    const float* eq = m.eqFor (target_, source_);
+    if (autoOn_)
+    {
+        const size_t S = static_cast<size_t> (m.numSources);
+        for (int b = 0; b < bands_; ++b)
+        {
+            double v = 0.0;
+            for (size_t s = 0; s < S; ++s)
+                v += autoW_[s] * static_cast<double> (m.eqFor (target_, static_cast<int> (s))[b]);
+            autoMix_[static_cast<size_t> (b)] = v;
+        }
+    }
     for (int b = 0; b < bands_; ++b)
-        gains_[static_cast<size_t> (b)] = (static_cast<double> (eq[b]) + (haveFrame ? delta_[static_cast<size_t> (b)] : 0.0))
+        gains_[static_cast<size_t> (b)] = ((autoOn_ ? autoMix_[static_cast<size_t> (b)] : static_cast<double> (eq[b]))
+                                           + (haveFrame ? delta_[static_cast<size_t> (b)] : 0.0))
                                           * static_cast<double> (intensity_);
     std::swap (curRev_, prevRev_);
     designFir (curRev_);

@@ -27,6 +27,23 @@ struct SpmSourceInfo
     std::string cell;
 };
 
+// Automatic source detection (optional section "auto" of the .spm): the plugin compares the spectrum shape of what it hears with
+// one prototype per source cell and mixes the source embedding and static EQ of all cells with soft weights. The mixed
+// embedding goes through the conditioning layers at run time (they are not linear), so those weights are stored here.
+struct SpmAuto
+{
+    bool present = false;
+    bool enabled = false; // false when the prototypes are placeholders (tests only): the plugin must not offer Auto
+    float tauDb = 0.5f, gateDb = -50.0f, avgSeconds = 1.0f;
+    int minFrames = 4, emb = 0, cond = 0, nMask = 0;
+    std::vector<unsigned char> mask;       // [bands], 1 = band takes part in the comparison
+    std::vector<float> protos;             // [source][nMask] spectrum shape (dB, mean removed) of every source cell
+    std::vector<float> embSrc, embTgt;     // [source][emb], [target][emb]
+    std::vector<float> condW, condB;       // [cond][2*emb], [cond]
+    std::vector<std::vector<float>> filmW; // per block [4*ch][cond]
+    std::vector<std::vector<float>> filmB; // per block [4*ch]
+};
+
 struct SpecModel
 {
     std::string name, targetCode;
@@ -46,6 +63,7 @@ struct SpecModel
     std::vector<std::string> targetCells; // cell name of every target position
     std::vector<float> film; // [target][source][block][4*ch]
     std::vector<float> eqDb; // [target][source][bands], shape only (zero mean over the range)
+    SpmAuto autoSource;
 
     const float* filmFor (int target, int source) const
     {

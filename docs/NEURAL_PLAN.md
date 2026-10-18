@@ -83,3 +83,24 @@ the output is the input filtered (no added distortion or noise by construction).
   same 64-band metric after 3.3 h of CPU training. Fine harmonic detail does not generalise from unaligned pairs.
 - Next idea: physics-informed model (pickup position comb filter, aperture, resonance/loading) fitted to the data for single notes,
   plus aligned data (two pickups recorded at once, or a repeatable string excitation) for waveform-level modelling.
+
+## Automatic source ("Auto")
+
+Why: the user should not have to pick the closest recorded guitar. The model only sees spectra, so "which guitar" is not needed, only
+"which recorded cell does this spectrum look like".
+
+Experiment (`training/nn/auto_source.py`, 462 held-out pairs, shape error dB, 1 s of input heard):
+none 7.40 | true source 4.23 | wrong source 6.86 | **Auto soft 4.63** (features 150 Hz - 12 kHz, tau 0.5) | Auto hard 4.76.
+Auto closes about 85 % of the gap between a wrong and the right pick. Top-1 cell is right only 34 % of the time (guitar 50 %), the
+rest are similar-sounding cells whose corrections are similar; soft weights beat a hard pick. Listening longer than 1 s does not help.
+
+Plugin (v0.7): `SpmAuto` section of the .spm (prototypes per source cell, source/target embeddings, conditioning and FiLM weights).
+Per hop, `SpecStream` adds the band power of loud frames (level above -50 dB) to a running mean with a 1 s memory, derives the
+spectrum shape (3-band smoothing, mean removed over 150 Hz - 12 kHz), takes the rms dB distance to every prototype, softmax(-(d - dmin) / 0.5)
+gives the weights, and the mixed source embedding goes through the conditioning layers (not linear, so they run in the plugin) to
+make the FiLM vectors; the static EQ is the weighted mix. Uniform weights until 4 loud frames were heard. Reference: `AutoSource`,
+`SpecNumpy.delta_auto` / `hop_gains_auto` in `spec_numpy.py`; the C++ test checks audio, gain curves and weights (-133 dB).
+
+The choice "Auto" is the last entry of the source guitar list and exists only when the .spm has real prototypes
+(`auto.enabled`, set by `export_spec.py --protos prototypes.npz`). Without the file the exporter writes placeholder prototypes
+and `enabled=false` (tests still use them). Open: tau below 0.5, a check on real HSS recordings, Auto as default.

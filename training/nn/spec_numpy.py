@@ -9,7 +9,7 @@ Frame f covers samples [f*512, f*512 + 4096), so it is complete at the start of 
 import math
 import numpy as np
 
-from spec_common import HOP, N_BANDS, NFFT, RANGE, frame_bands_db, min_phase_fir
+from spec_common import CENTERS, HOP, N_BANDS, NFFT, RANGE, clip_db, frame_bands_db, min_phase_fir
 
 HOPS_PER_FRAME = NFFT // HOP  # 8
 
@@ -115,6 +115,94 @@ class SpecNumpy:
             f = j - HOPS_PER_FRAME
             gains[j] = static + (d[f] if 0 <= f < len(d) else 0.0)
         return gains * getattr(self, 'intensity', 1.0)
+
+
+    # ------------------------------------------------------------------------------ automatic source (mixed source cells)
+    def delta_auto(self, L, W, tgt):
+        """Like delta(), but the source is a MIX that changes from frame to frame: W (F, cells) weights per frame.
+        The mixed source embedding goes through the conditioning net of every frame separately (FiLM varies with time)."""
+        s = self.s
+        e_src = W @ s["emb.weight"]                                       # (F, emb)
+        e = np.concatenate([e_src, np.tile(s["emb.weight"][tgt], (len(L), 1))], axis=1)
+        c = _silu(e @ s["cond.0.weight"].T + s["cond.0.bias"])           # (F, cond)
+        h = self.embed(L)
+        skip = 0.0
+        for i, d in enumerate(self.dilations):
+            p = f"blocks.{i}."
+            z = self.conv(h, s[p + "conv.weight"], s[p + "conv.bias"], d)
+            film = (c @ s[p + "film.weight"].T + s[p + "film.bias"]).T   # (4ch, F)
+            gamma, beta = film[:2 * self.ch], film[2 * self.ch:]
+            z = z * (1.0 + gamma) + beta
+            a, b = z[:self.ch], z[self.ch:]
+            z = np.tanh(a) * _sigmoid(b)
+            h = h + s[p + "res.weight"][:, :, 0] @ z + s[p + "res.bias"][:, None]
+            skip = skip + s[p + "skip.weight"][:, :, 0] @ z + s[p + "skip.bias"][:, None]
+        out = s["head.1.weight"][:, :, 0] @ _silu(skip) + s["head.1.bias"][:, None]
+        out = self.max_delta * np.tanh(out / self.max_delta)
+        return self.zero_mean(out.T @ self.ctrl_w)
+
+    def hop_gains_auto(self, L, W, tgt, n_hops):
+        """Gain curve of every hop j with the automatic source: weights and delta of frame j - 8 (uniform weights, static EQ only
+        before frame 0). W (F, cells) are the per-frame weights from AutoSource.run()."""
+        n_cells = len(self.cells)
+        eq_all = np.stack([self.static_eq(a, tgt) for a in range(n_cells)])      # (cells, N)
+        uniform = np.full(n_cells, 1.0 / n_cells)
+        d = self.delta_auto(L, W, tgt) if len(L) else np.zeros((0, N_BANDS))
+        gains = np.empty((n_hops, N_BANDS))
+        for j in range(n_hops):
+            f = j - HOPS_PER_FRAME
+            if 0 <= f < len(d):
+                gains[j] = W[f] @ eq_all + d[f]
+            else:
+                gains[j] = uniform @ eq_all
+        return gains * getattr(self, 'intensity', 1.0)
+
+
+def smooth3(bands_db):
+    """3-band moving average in the power domain, edges repeated (same as metrics.smooth_bands)."""
+    p = 10.0 ** (np.asarray(bands_db, dtype=np.float64) / 10.0)
+    return 10.0 * np.log10(np.convolve(np.pad(p, (1, 1), mode="edge"), np.ones(3) / 3.0, mode="valid") + 1e-14)
+
+
+class AutoSource:
+    """What the plugin does to find the source cell by itself (reference for the C++ port).
+
+    Per frame (hop 512): if the frame is loud enough (total level above gate_db) its band POWER joins a running mean whose
+    memory is avg_seconds of loud frames (silence does not dilute it). The running mean gives a spectrum shape (3-band
+    smoothing, band mean removed inside the mask), its rms distance in dB to every cell prototype gives soft weights
+    softmax(-(d - d_min) / tau). Until min_frames loud frames were heard the weights stay uniform."""
+
+    def __init__(self, protos, mask, tau_db=0.5, gate_db=-50.0, avg_seconds=1.0, min_frames=4):
+        self.protos = np.asarray(protos, dtype=np.float64)        # (cells, mask.sum())
+        self.mask = np.asarray(mask, dtype=bool)
+        self.tau, self.gate, self.min_frames = float(tau_db), float(gate_db), float(min_frames)
+        self.decay = math.exp(-(HOP / 48000.0) / float(avg_seconds))
+
+    def distances(self, mean_power):
+        clip = 10.0 * np.log10(mean_power + 1e-14)
+        f = smooth3(clip)[self.mask]
+        f = f - f.mean()
+        return np.sqrt(np.mean((self.protos - f) ** 2, axis=1))
+
+    def weights_from(self, d):
+        z = np.exp(-(d - d.min()) / self.tau)
+        return z / z.sum()
+
+    def run(self, L):
+        """L (F, 64) analysis band dB -> weights (F, cells) after each frame."""
+        n = len(self.protos)
+        acc, wsum = np.zeros(L.shape[1]), 0.0
+        w = np.full(n, 1.0 / n)
+        out = np.empty((len(L), n))
+        for f in range(len(L)):
+            p = 10.0 ** (L[f].astype(np.float64) / 10.0)
+            if 10.0 * np.log10(p.sum() + 1e-14) > self.gate:
+                acc = acc * self.decay + p
+                wsum = wsum * self.decay + 1.0
+                if wsum >= self.min_frames:
+                    w = self.weights_from(self.distances(acc / wsum))
+            out[f] = w
+        return out
 
 
 def apply_hop_filters(x, gains, taps=1024):

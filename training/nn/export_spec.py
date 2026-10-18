@@ -17,11 +17,13 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 from guitar_map import GUITARS, guitar_of, position_of  # noqa: E402  (cell name -> plugin guitar / position)
-from spec_common import CENTERS, EDGES, HOP, N_BANDS, NFFT, RANGE  # noqa: E402
-from spec_numpy import SpecNumpy, _silu, process  # noqa: E402
+from spec_common import CENTERS, EDGES, HOP, N_BANDS, NFFT, RANGE, frame_bands_db  # noqa: E402
+from spec_numpy import AutoSource, SpecNumpy, _silu, apply_hop_filters, process  # noqa: E402
 from torchless import load_pt  # noqa: E402
 
-FORMAT_VERSION = "0.1.0"
+FORMAT_VERSION = "0.2.0"
+AUTO_MASK = (CENTERS >= 150.0) & (CENTERS <= 12000.0)   # bands that identify the source (wide features of auto_source.py)
+AUTO_TAU_DB, AUTO_GATE_DB, AUTO_SECONDS, AUTO_MIN_FRAMES = 0.5, -50.0, 1.0, 4
 
 
 def fmt(a, digits=7):
@@ -33,6 +35,9 @@ def main() -> int:
     ap.add_argument("model", type=Path)
     ap.add_argument("out_dir", type=Path, help="models/ (writes <CODE>/model.spm and tests/golden alongside via --golden-dir)")
     ap.add_argument("--golden-dir", type=Path, default=None)
+    ap.add_argument("--protos", type=Path, default=None,
+                    help="prototypes.npz from auto_source.py (spectrum shape of every cell). Without it the automatic source is "
+                         "written with PLACEHOLDER prototypes and disabled (enabled=false); tests still use it.")
     args = ap.parse_args()
     if N_BANDS != 64:
         raise SystemExit("export_spec supports the 64-band v3 model (unset FOURREAL_BANDS)")
@@ -60,6 +65,17 @@ def main() -> int:
     weights["head.bias"] = state["head.1.bias"]
     net = {k: {"shape": list(np.shape(v)), "data": fmt(v)} for k, v in weights.items()}
 
+    # --- automatic source: prototypes (cells order of the checkpoint) ---
+    n_mask = int(AUTO_MASK.sum())
+    auto_real = args.protos is not None
+    if auto_real:
+        z = np.load(args.protos, allow_pickle=True)
+        names = [str(c) for c in z["cells"]]
+        assert sorted(names) == sorted(cells), "prototypes.npz was made for different cells"
+        protos_cells = np.stack([z["wide"][names.index(c)] for c in cells]).astype(np.float64)
+        assert protos_cells.shape[1] == n_mask, f"prototypes have {protos_cells.shape[1]} bands, expected {n_mask}"
+    protos_cells = protos_cells if auto_real else None   # placeholder is made from the probe below
+
     # probe signal for the golden vectors: harmonic decaying note + a second note + noise, 1.5 s
     rng = np.random.default_rng(1234)
     t = np.arange(43200) / 48000.0   # 0.9 s = 84 hops
@@ -67,6 +83,16 @@ def main() -> int:
              + 0.02 * np.sin(2 * np.pi * 330.0 * t) * np.exp(-0.8 * np.maximum(t - 0.4, 0)) * (t > 0.4)
              + 0.002 * rng.standard_normal(len(t))).astype(np.float32)
     probe = probe.astype(np.float64)
+    # the same note with a silent gap (0.50 - 0.65 s) to exercise the loudness gate of the automatic source
+    probe_auto = probe.copy()
+    probe_auto[24000:31200] = 1e-4 * rng.standard_normal(7200)
+    if not auto_real:
+        from spec_numpy import smooth3
+        Lp = frame_bands_db(probe_auto)
+        feat = smooth3(10.0 * np.log10(np.mean(10.0 ** (Lp.astype(np.float64) / 10.0), axis=0) + 1e-14))[AUTO_MASK]
+        feat = feat - feat.mean()
+        protos_cells = feat[None, :] + rng.normal(0.0, 1.5, (len(cells), n_mask))   # placeholder: distances of a few dB
+    auto_src = AutoSource(protos_cells, AUTO_MASK, AUTO_TAU_DB, AUTO_GATE_DB, AUTO_SECONDS, AUTO_MIN_FRAMES)
 
     for code, order in GUITARS:
         targets = sorted([i for i in range(len(cells)) if where[i][0] == code], key=lambda i: where[i][1])
@@ -93,6 +119,19 @@ def main() -> int:
             "sources": [{"code": where[i][0], "position": where[i][1], "cell": cells[i]} for i in sources],
             "network": net,
             "conditioning": cond,
+            "auto": {
+                "enabled": bool(auto_real), "tau_db": AUTO_TAU_DB, "gate_db": AUTO_GATE_DB, "avg_seconds": AUTO_SECONDS,
+                "min_frames": AUTO_MIN_FRAMES, "mask": [int(v) for v in AUTO_MASK],
+                "protos": {"shape": [len(sources), n_mask], "data": fmt(protos_cells[sources])},
+                "emb_src": {"shape": [len(sources), state["emb.weight"].shape[1]], "data": fmt(state["emb.weight"][sources])},
+                "emb_tgt": {"shape": [len(targets), state["emb.weight"].shape[1]], "data": fmt(state["emb.weight"][targets])},
+                "cond_w": {"shape": list(state["cond.0.weight"].shape), "data": fmt(state["cond.0.weight"])},
+                "cond_b": {"shape": list(state["cond.0.bias"].shape), "data": fmt(state["cond.0.bias"])},
+                "film_w": [{"shape": list(state[f"blocks.{i}.film.weight"].shape), "data": fmt(state[f"blocks.{i}.film.weight"])}
+                           for i in range(len(dil))],
+                "film_b": [{"shape": list(state[f"blocks.{i}.film.bias"].shape), "data": fmt(state[f"blocks.{i}.film.bias"])}
+                           for i in range(len(dil))],
+            },
         }
         out = args.out_dir / code
         out.mkdir(parents=True, exist_ok=True)
@@ -114,6 +153,20 @@ def main() -> int:
                 case["out_x1_5"] = fmt(process(ref, probe, si, ti, 0.0, dynamic=True)[0], 7)
                 ref.intensity = 1.0
             golden["cases"].append(case)
+        # automatic source: weights of selected hops, gain curves and the filtered audio (target = last position)
+        ti = targets[-1]
+        ref.intensity = 1.0
+        L_auto = frame_bands_db(probe_auto)
+        W = auto_src.run(L_auto)                                                  # (frames, cells), cells order
+        n_hops = len(probe_auto) // HOP
+        gains_auto = ref.hop_gains_auto(L_auto, W, ti, n_hops)
+        y_auto = apply_hop_filters(probe_auto[:n_hops * HOP], gains_auto)
+        keep = [0, 7, 8, 9, 20, 30, 45, 60, 80]
+        uniform = np.full(len(cells), 1.0 / len(cells))
+        golden["input_auto"] = fmt(probe_auto, 7)
+        golden["auto"] = {"target": targets.index(ti), "out": fmt(y_auto, 7), "hops": keep,
+                          "weights": [fmt((W[j - 8] if j >= 8 else uniform)[sources], 8) for j in keep],
+                          "gains": [fmt(gains_auto[j], 8) for j in keep]}
         gdir = args.golden_dir or (args.out_dir.parent / "tests" / "golden")
         gdir.mkdir(parents=True, exist_ok=True)
         (gdir / f"golden_spm_{code}.json").write_text(json.dumps(golden, separators=(",", ":")), encoding="utf-8")

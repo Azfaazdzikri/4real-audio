@@ -133,6 +133,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout FourRealAudioProcessor::crea
     StringArray sourceNames;
     for (const auto& m : fourreal::allModels())
         sourceNames.add (m.displayName);
+    if (autoSourceAvailable())
+        sourceNames.add ("Auto (listens to my guitar)"); // last entry, so saved projects keep their guitar choice
     params.push_back (std::make_unique<AudioParameterChoice> (
         ParameterID { "srcGuitar", 1 }, "Source guitar", sourceNames, 0));
     params.push_back (std::make_unique<AudioParameterChoice> (
@@ -157,6 +159,30 @@ juce::AudioProcessorValueTreeState::ParameterLayout FourRealAudioProcessor::crea
         knobParam (toneId (i), target.tones[i].label);
 
     return { params.begin(), params.end() };
+}
+
+bool FourRealAudioProcessor::autoSourceAvailable()
+{
+    static const bool available = []
+    {
+        fourreal::SpecModel m;
+        std::string error;
+        return fourreal::SpecModel::load (SpmData::model_spm, static_cast<size_t> (SpmData::model_spmSize), m, error)
+               && m.autoSource.present && m.autoSource.enabled;
+    }();
+    return available;
+}
+
+juce::String FourRealAudioProcessor::sourceLabel (int index) const
+{
+    if (! specLoaded || index < 0 || index >= spec.numSources)
+        return {};
+    const auto& s = spec.sources[static_cast<size_t> (index)];
+    const auto* g = fourreal::findModelByCode (s.code);
+    if (g == nullptr)
+        return s.cell;
+    const int pos = juce::jlimit (0, (int) g->positions.size() - 1, s.position);
+    return juce::String (g->displayName) + " " + juce::String (g->positions[static_cast<size_t> (pos)].name).toLowerCase();
 }
 
 int FourRealAudioProcessor::sourceIndexFor (int guitar, int position) const
@@ -311,14 +337,20 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
     // Which (target position, source cell) pair is selected right now.
     const int target = juce::jlimit (0, juce::jmax (0, spec.numTargets - 1),
                                      static_cast<int> (apvts.getRawParameterValue ("tgtSel")->load() + 0.5f));
-    const int source = sourceIndexFor (static_cast<int> (apvts.getRawParameterValue ("srcGuitar")->load() + 0.5f),
-                                       static_cast<int> (apvts.getRawParameterValue ("srcPos")->load() + 0.5f));
-    if (specLoaded && (target != activeTarget || source != activeSource))
+    const int guitarChoice = static_cast<int> (apvts.getRawParameterValue ("srcGuitar")->load() + 0.5f);
+    const bool autoSrc = specLoaded && autoSourceAvailable() && guitarChoice >= (int) fourreal::allModels().size();
+    const int source = autoSrc ? 0 : sourceIndexFor (guitarChoice, static_cast<int> (apvts.getRawParameterValue ("srcPos")->load() + 0.5f));
+    if (specLoaded && (target != activeTarget || source != activeSource || autoSrc != activeAuto))
     {
         for (auto& st : stream)
+        {
             st.setCondition (target, source);
+            st.setAutoSource (autoSrc);
+        }
         activeTarget = target;
         activeSource = source;
+        activeAuto = autoSrc;
+        autoActiveUi.store (autoSrc);
     }
 
     // Voicing off and settled: nothing to compute (the streams are cleared when it is switched back on).
@@ -380,7 +412,7 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
 
     // Intensity of the learned tone change. Playing the target guitar's own selected pickup through itself changes nothing.
     float intensity = apvts.getRawParameterValue ("intensity")->load() * 0.01f;
-    if (specLoaded && spec.sources[static_cast<size_t> (source)].cell == spec.targetCells[static_cast<size_t> (target)])
+    if (specLoaded && ! autoSrc && spec.sources[static_cast<size_t> (source)].cell == spec.targetCells[static_cast<size_t> (target)])
         intensity = 0.0f;
 
     float* wk[2] = { work[0].data(), work[1].data() };
@@ -400,6 +432,12 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
             stream[c].setIntensity (intensity);
             stream[c].setAnalysisGain (autoGain);
             stream[c].process (wk[c], wk[c], n);
+        }
+        if (autoSrc)
+        {
+            const auto& w = stream[0].autoWeights();
+            for (size_t i = 0; i < w.size() && i < autoWeightsUi.size(); ++i)
+                autoWeightsUi[i].store (static_cast<float> (w[i]), std::memory_order_relaxed);
         }
     }
     else

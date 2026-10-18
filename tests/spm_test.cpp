@@ -131,6 +131,62 @@ int main (int argc, char** argv)
         ++caseNo;
     }
 
+    // automatic source: weights, gain curves and filtered audio against the numpy reference (AutoSource / hop_gains_auto)
+    if (const Json* ag = golden.find ("auto"))
+    {
+        CHECK (m.autoSource.present, "the model has no auto section but the golden file has an auto case");
+        const auto in = toFloat (golden.at ("input_auto").nums);
+        const int target = static_cast<int> (ag->at ("target").number);
+        std::printf ("auto source: target %d (%d source cells, %d bands compared)\n", target, m.numSources, m.autoSource.nMask);
+        SpecStream a;
+        a.prepare (m, 48000.0);
+        a.setCondition (target, 0);
+        a.setAutoSource (true);
+        a.setIntensity (1.0f);
+        a.setAnalysisGain (1.0f);
+        compare ("filtered audio (auto)", run (a, in), toFloat (ag->at ("out").nums));
+
+        a.reset();
+        a.setCondition (target, 0);
+        const auto& hops = ag->at ("hops").nums;
+        std::vector<float> scratch (static_cast<size_t> (m.hop));
+        size_t next = 0;
+        double worstW = 0.0;
+        for (int j = 0; next < hops.size(); ++j)
+        {
+            a.process (in.data() + static_cast<size_t> (j) * static_cast<size_t> (m.hop), scratch.data(), m.hop);
+            if (j == static_cast<int> (hops[next]))
+            {
+                double maxDb = 0.0, maxW = 0.0;
+                for (int b = 0; b < m.bands; ++b)
+                    maxDb = std::max (maxDb, std::abs (a.hopGains()[static_cast<size_t> (b)] - ag->at ("gains").items[next].nums[static_cast<size_t> (b)]));
+                for (int s = 0; s < m.numSources; ++s)
+                    maxW = std::max (maxW, std::abs (a.autoWeights()[static_cast<size_t> (s)] - ag->at ("weights").items[next].nums[static_cast<size_t> (s)]));
+                worstW = std::max (worstW, maxW);
+                std::printf ("  hop %3d: gain curve max difference %.4f dB, weights max difference %.5f\n", j, maxDb, maxW);
+                CHECK (maxDb < 0.05, "auto hop %d gain curve differs by %.4f dB", j, maxDb);
+                CHECK (maxW < 0.002, "auto hop %d weights differ by %.5f", j, maxW);
+                ++next;
+            }
+        }
+        // the weights must really move (placeholder prototypes are a few dB apart) and stay a distribution
+        double sum = 0.0, top = 0.0;
+        for (double w : a.autoWeights())
+        {
+            sum += w;
+            top = std::max (top, w);
+        }
+        CHECK (std::abs (sum - 1.0) < 1e-9, "weights do not sum to 1");
+        CHECK (top > 1.5 / m.numSources, "weights stayed uniform (%.3f)", top);
+        // auto mode with one-hot weights would equal manual; at least check manual is unaffected by the new code path
+        SpecStream manual;
+        manual.prepare (m, 48000.0);
+        manual.setCondition (target, 0);
+        manual.setAutoSource (false);
+        CHECK (! manual.autoSourceActive(), "manual stream reports auto");
+        (void) worstW;
+    }
+
     // Other host rates: the same sound (defined in continuous time) must give about the same band gains as at 48 kHz.
     // The network reacts strongly to tiny input changes for some pairs (47 kHz alone already differs by 2 dB there), so the
     // limits only catch real breakage such as wrong band mapping or timing, not small jitter.

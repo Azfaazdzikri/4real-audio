@@ -124,6 +124,41 @@ bool SpecModel::load (const char* data, size_t size, SpecModel& out, std::string
             }
         }
 
+        if (const Json* a = doc.find ("auto"))
+        {
+            SpmAuto& s = m.autoSource;
+            s.present = true;
+            s.enabled = a->at ("enabled").number != 0.0;
+            s.tauDb = static_cast<float> (a->at ("tau_db").number);
+            s.gateDb = static_cast<float> (a->at ("gate_db").number);
+            s.avgSeconds = static_cast<float> (a->at ("avg_seconds").number);
+            s.minFrames = static_cast<int> (a->at ("min_frames").number);
+            const auto& mask = a->at ("mask").nums;
+            if (static_cast<int> (mask.size()) != m.bands || s.tauDb <= 0.0f || s.avgSeconds <= 0.0f)
+                throw std::runtime_error ("auto: inconsistent settings");
+            for (double v : mask)
+            {
+                s.mask.push_back (v != 0.0 ? 1 : 0);
+                s.nMask += v != 0.0 ? 1 : 0;
+            }
+            const size_t S = static_cast<size_t> (m.numSources), T = static_cast<size_t> (m.numTargets);
+            s.protos = minijson::tensor (*a, "protos", S * static_cast<size_t> (s.nMask));
+            const Json& es = a->at ("emb_src");
+            s.emb = static_cast<int> (es.at ("shape").nums.at (1));
+            s.embSrc = minijson::tensor (*a, "emb_src", S * static_cast<size_t> (s.emb));
+            s.embTgt = minijson::tensor (*a, "emb_tgt", T * static_cast<size_t> (s.emb));
+            s.cond = static_cast<int> (a->at ("cond_b").at ("shape").nums.at (0));
+            s.condW = minijson::tensor (*a, "cond_w", static_cast<size_t> (s.cond) * 2 * static_cast<size_t> (s.emb));
+            s.condB = minijson::tensor (*a, "cond_b", static_cast<size_t> (s.cond));
+            if (a->at ("film_w").items.size() != m.blocks.size() || a->at ("film_b").items.size() != m.blocks.size())
+                throw std::runtime_error ("auto: wrong number of film blocks");
+            for (size_t b = 0; b < m.blocks.size(); ++b)
+            {
+                s.filmW.push_back (minijson::floats (a->at ("film_w").items[b].at ("data"), 4 * ch * static_cast<size_t> (s.cond), "film_w"));
+                s.filmB.push_back (minijson::floats (a->at ("film_b").items[b].at ("data"), 4 * ch, "film_b"));
+            }
+        }
+
         out = std::move (m);
         return true;
     }

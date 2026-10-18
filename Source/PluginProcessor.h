@@ -1,5 +1,7 @@
 #pragma once
 
+#include <array>
+
 #include <juce_audio_processors/juce_audio_processors.h>
 
 #include "dsp/CrossfadeFir.h"
@@ -63,6 +65,15 @@ public:
     std::atomic<double> hostSampleRate { 48000.0 };
     bool modelLoaded() const { return specLoaded; }
 
+    // Automatic source: the engine listens to the spectrum of the guitar and mixes the source cells itself. The choice "Auto" is
+    // the last entry of the source guitar list and only exists when the model carries real prototypes.
+    static bool autoSourceAvailable();
+    static constexpr int kMaxSources = 32;
+    std::array<std::atomic<float>, kMaxSources> autoWeightsUi {}; // current weight of every source cell (for the editor)
+    std::atomic<bool> autoActiveUi { false };
+    int numSourceCells() const { return specLoaded ? juce::jmin (kMaxSources, spec.numSources) : 0; }
+    juce::String sourceLabel (int index) const; // e.g. "Les Paul bridge"
+
 private:
     void parameterChanged (const juce::String& parameterID, float newValue) override;
     void handleAsyncUpdate() override;
@@ -85,6 +96,7 @@ private:
     juce::SpinLock tapsLock;
     std::atomic<bool> tapsReady { false };
     int activeTarget = -1, activeSource = -1;
+    bool activeAuto = false;
     bool bypassed = false;
 
     // auto level: a slow estimate of the input level, so the network analyses roughly the level it was trained at

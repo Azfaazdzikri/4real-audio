@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include <algorithm>
 
 namespace
 {
@@ -67,7 +68,13 @@ FourRealAudioEditor::FourRealAudioEditor (FourRealAudioProcessor& p)
     intensityKnob.slider.setDoubleClickReturnValue (true, 100.0);
     setupKnob (outputKnob, "outputGain", "OUTPUT", true);
 
-    styleLabel (sourceHeader, "MY GUITAR (SOURCE) - pick the closest recorded guitar", juce::Justification::centredLeft);
+    styleLabel (sourceHeader,
+                FourRealAudioProcessor::autoSourceAvailable() ? "MY GUITAR (SOURCE) - pick the closest recorded guitar, or Auto"
+                                                              : "MY GUITAR (SOURCE) - pick the closest recorded guitar",
+                juce::Justification::centredLeft);
+    styleLabel (autoLabel, "", juce::Justification::centredLeft);
+    autoLabel.setFont (juce::Font (juce::FontOptions (12.0f)));
+    addAndMakeVisible (autoLabel);
     styleLabel (targetHeader, juce::String ("SOUND LIKE: ") + juce::String (target.displayName).toUpperCase(),
                 juce::Justification::centredLeft);
     addAndMakeVisible (sourceHeader);
@@ -95,8 +102,16 @@ FourRealAudioEditor::~FourRealAudioEditor()
 void FourRealAudioEditor::refreshSourcePositions()
 {
     const auto& models = fourreal::allModels();
-    const int guitar = juce::jlimit (0, (int) models.size() - 1,
+    const int guitar = juce::jlimit (0, (int) models.size(),
                                      static_cast<int> (audioProcessor.apvts.getRawParameterValue ("srcGuitar")->load() + 0.5f));
+    const bool isAuto = static_cast<size_t> (guitar) >= models.size(); // the last list entry is "Auto"
+    sourcePosition.box.setVisible (! isAuto);
+    if (isAuto)
+    {
+        sourcePosition.box.clear (juce::dontSendNotification);
+        shownSourceGuitar = guitar;
+        return;
+    }
     const auto& positions = models[static_cast<size_t> (guitar)].positions;
     const int count = (int) positions.size();
 
@@ -120,6 +135,23 @@ void FourRealAudioEditor::timerCallback()
     const int guitar = static_cast<int> (audioProcessor.apvts.getRawParameterValue ("srcGuitar")->load() + 0.5f);
     if (guitar != shownSourceGuitar)
         refreshSourcePositions();
+
+    // Automatic source: show which recorded cells the plugin thinks your guitar is closest to.
+    juce::String autoText;
+    if (audioProcessor.autoActiveUi.load())
+    {
+        std::vector<std::pair<float, int>> top;
+        for (int i = 0; i < audioProcessor.numSourceCells(); ++i)
+            top.emplace_back (audioProcessor.autoWeightsUi[(size_t) i].load(), i);
+        std::sort (top.begin(), top.end(), [] (const auto& a, const auto& b) { return a.first > b.first; });
+        autoText = "Auto hears:";
+        for (size_t k = 0; k < top.size() && k < 3; ++k)
+            if (top[k].first >= 0.05f)
+                autoText << (k ? ",  " : " ") << audioProcessor.sourceLabel (top[k].second) << " "
+                         << juce::String (juce::roundToInt (top[k].first * 100.0f)) << " %";
+    }
+    if (autoText != autoLabel.getText())
+        autoLabel.setText (autoText, juce::dontSendNotification);
 
     // Quick attack, slow release.
     inputLevel  = juce::jmax (audioProcessor.inputPeak.load(),  inputLevel  * 0.85f);
@@ -191,9 +223,11 @@ void FourRealAudioEditor::resized()
     auto toggleArea = top;
 
     sourceHeader.setBounds (sourceArea.removeFromTop (22));
-    sourceGuitar.box.setBounds (sourceArea.removeFromLeft (210).removeFromTop (28));
-    sourceArea.removeFromLeft (10);
-    sourcePosition.box.setBounds (sourceArea.removeFromTop (28));
+    auto sourceRow = sourceArea.removeFromTop (28);
+    sourceGuitar.box.setBounds (sourceRow.removeFromLeft (210));
+    sourceRow.removeFromLeft (10);
+    sourcePosition.box.setBounds (sourceRow);
+    autoLabel.setBounds (sourceArea.removeFromTop (22));
 
     targetHeader.setBounds (targetArea.removeFromTop (22));
     targetSelector.box.setBounds (targetArea.removeFromTop (28));

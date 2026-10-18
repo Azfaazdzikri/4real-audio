@@ -54,7 +54,7 @@ private:
     int shownSourceGuitar = -1;
     Choice sourceGuitar, sourcePosition, targetSelector;
     Toggle voicingToggle, keepLevelToggle, autoLevelToggle;
-    juce::Label sourceHeader, targetHeader;
+    juce::Label sourceHeader, targetHeader, autoLabel;
 
     juce::Rectangle<int> meterArea;
     float inputLevel = 0.0f;

@@ -39,6 +39,7 @@ def main() -> int:
     from metrics import smooth_bands
     from spec_common import CENTERS, RATE, clip_db, frame_bands_db
     from spec_metrics import rms_wide, rms_wide64
+    from spec_numpy import AutoSource
     from guitar_map import guitar_of
 
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
@@ -78,6 +79,8 @@ def main() -> int:
             fs = [feature(data.clip[r], mask, smooth_bands) for r in train_rows[c]]
             P[c] = np.mean(fs, axis=0)
         protos[name] = P
+
+    online = AutoSource(protos["wide 150-12k"], masks["wide 150-12k"], tau_db=0.5)   # what the plugin runs (gated running mean)
 
     def weights(L_frames_db, name, tau):
         """Soft weights over cells from frames (n, 64) dB."""
@@ -119,6 +122,7 @@ def main() -> int:
         nfr = max(8, int(round(T / hop_s)))
         acc = {"top1_cell": [], "top1_guitar": [], "w_true": [], "entropy": [], "dist_min": []}
         err = {"none": [], "true": [], "wrong": []}
+        err["online (plugin: loud frames, running mean)"] = []
         for name in masks:
             for tau in taus:
                 err[f"auto {name} tau={tau:g}"] = []
@@ -138,6 +142,7 @@ def main() -> int:
             err["true"].append(score(onehot(a)))
             wrong = [c for c in range(n_cells) if c not in (a, b)]
             err["wrong"].append(score(onehot(int(rng.choice(wrong)))))
+            err["online (plugin: loud frames, running mean)"].append(score(online.run(heard)[-1]))
             for name in masks:
                 for tau in taus:
                     w, d = weights(heard, name, tau)
@@ -156,6 +161,7 @@ def main() -> int:
         results[str(T)] = res
         print(f"\n=== detector hears the first {T:g} s ({len(ev.pairs)} held-out pairs; shape error dB, lower is better) ===")
         print(f"  none {res['none']:.2f} | true source {res['true']:.2f} | wrong source {res['wrong']:.2f}")
+        print(f"  ONLINE estimator used by the plugin (gate, running mean, tau 0.5): {res['online (plugin: loud frames, running mean)']:.2f}")
         for name in masks:
             for tau in taus:
                 print(f"  features {name:13s} tau {tau:3g}: auto soft {res[f'auto {name} tau={tau:g}']:.2f} | hard {res[f'hard {name} tau={tau:g}']:.2f}")

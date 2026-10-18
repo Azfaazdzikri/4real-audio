@@ -47,6 +47,14 @@ public:
     // Linear gain applied to the signal before the analysis only (auto level); the filter acts on the raw input.
     void setAnalysisGain (float g) { analysisGain_ = g; }
 
+    // Automatic source: instead of the fixed source cell the stream listens to the spectrum shape of the loud frames it hears
+    // (about the last second) and mixes the source embedding and static EQ of all cells with soft weights. Needs a model with an
+    // "auto" section (SpecModel::autoSource.present); otherwise this does nothing.
+    void setAutoSource (bool on) { autoOn_ = on && model_ != nullptr && model_->autoSource.present; }
+    bool autoSourceActive() const { return autoOn_; }
+    // Current weight of every source cell (sum 1), meaningful in auto mode.
+    const std::vector<double>& autoWeights() const { return autoW_; }
+
     // in and out may be the same buffer. Any numSamples.
     void process (const float* in, float* out, int numSamples);
 
@@ -58,6 +66,8 @@ private:
     void analyse();
     void runNet();
     void designFir (std::vector<float>& revTaps);
+    void updateAuto();
+    void autoFilm();
 
     const SpecModel* model_ = nullptr;
     int bands_ = 0, ch_ = 0, nfft_ = 0, winLen_ = 0, hop_ = 0, taps_ = 0, dfft_ = 0, nBlocks_ = 0, framesPerWindow_ = 0;
@@ -86,6 +96,12 @@ private:
     std::vector<std::vector<float>> hist_; // per block: (2*dilation + 1) frames of the block input
     std::vector<int> histPos_;
     std::vector<double> delta_, gains_;
+
+    // automatic source
+    bool autoOn_ = false;
+    std::vector<double> autoW_, autoAcc_, autoFeat_, autoMix_;
+    std::vector<float> filmBuf_, condVec_, embMix_;
+    double autoCount_ = 0.0, autoDecay_ = 0.99;
 
     // filtering
     std::vector<float> curRev_, prevRev_, buf_, ramp_;
