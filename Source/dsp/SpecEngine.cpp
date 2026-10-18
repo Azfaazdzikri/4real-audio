@@ -132,22 +132,32 @@ void SpecStream::prepare (const SpecModel& m, double sampleRate)
     sampleRate_ = sampleRate;
     bands_ = m.bands;
     ch_ = m.channels;
-    nfft_ = m.nfft;
-    hop_ = m.hop;
-    taps_ = m.taps;
-    dfft_ = m.designFft;
     nBlocks_ = static_cast<int> (m.blocks.size());
-    framesPerWindow_ = nfft_ / hop_;
+    framesPerWindow_ = std::max (1, m.nfft / m.hop);
+
+    // Everything is defined in time, not in samples, so a 44.1 kHz or 96 kHz project behaves like the 48 kHz the model was
+    // trained at: same 10.7 ms hop, same 85 ms analysis window (a whole number of hops, so a frame is complete when a hop
+    // starts), same 21 ms filter length. The bands are defined in Hz and follow the sample rate automatically.
+    const double scale = sampleRate / m.sampleRate;
+    hop_ = std::max (16, static_cast<int> (std::lround (m.hop * scale)));
+    winLen_ = framesPerWindow_ * hop_;
+    nfft_ = 1;
+    while (nfft_ < winLen_)
+        nfft_ <<= 1;
+    taps_ = std::clamp (static_cast<int> (std::lround (m.taps * scale)), 64, 2048);
+    dfft_ = 1;
+    while (dfft_ < taps_ * (m.designFft / m.taps))
+        dfft_ <<= 1;
 
     fftA_.prepare (nfft_);
     fftD_.prepare (dfft_);
 
-    // periodic Hann window (same as np.hanning(n + 1)[:-1])
-    window_.resize (static_cast<size_t> (nfft_));
+    // periodic Hann window over the analysis window (same as np.hanning(n + 1)[:-1]), zero padded up to the FFT size
+    window_.resize (static_cast<size_t> (winLen_));
     windowNorm_ = 0.0;
-    for (int n = 0; n < nfft_; ++n)
+    for (int n = 0; n < winLen_; ++n)
     {
-        window_[static_cast<size_t> (n)] = 0.5 - 0.5 * std::cos (2.0 * kPi * n / nfft_);
+        window_[static_cast<size_t> (n)] = 0.5 - 0.5 * std::cos (2.0 * kPi * n / winLen_);
         windowNorm_ += window_[static_cast<size_t> (n)] * window_[static_cast<size_t> (n)];
     }
 
@@ -291,10 +301,16 @@ void SpecStream::setCondition (int target, int source)
 void SpecStream::analyse()
 {
     const float g = analysisGain_;
-    for (int n = 0; n < nfft_; ++n)
+    const int skip = nfft_ - winLen_; // the ring holds nfft_ samples, the window uses the newest winLen_ of them
+    for (int n = 0; n < winLen_; ++n)
     {
-        const size_t idx = static_cast<size_t> ((ringPos_ + n) & (nfft_ - 1)); // oldest sample first
+        const size_t idx = static_cast<size_t> ((ringPos_ + skip + n) & (nfft_ - 1)); // oldest sample first
         re_[static_cast<size_t> (n)] = static_cast<double> (ring_[idx] * g) * window_[static_cast<size_t> (n)];
+        im_[static_cast<size_t> (n)] = 0.0;
+    }
+    for (int n = winLen_; n < nfft_; ++n)
+    {
+        re_[static_cast<size_t> (n)] = 0.0;
         im_[static_cast<size_t> (n)] = 0.0;
     }
     fftA_.forward (re_.data(), im_.data());

@@ -35,8 +35,9 @@ private:
 class SpecStream
 {
 public:
-    // The model must outlive the stream. sampleRate is the host rate: bands are defined in Hz, so other rates than the
-    // 48 kHz the model was trained at still land on the right frequencies (the analysis window just gets a different length).
+    // The model must outlive the stream. sampleRate is the host rate. The hop (10.7 ms), the analysis window (85 ms) and the
+    // filter length (21 ms) are kept the same in time at every rate, and the bands are defined in Hz, so 44.1, 48, 88.2 and
+    // 96 kHz projects all behave like the 48 kHz the model was trained at. Cost grows with the rate (filter length).
     void prepare (const SpecModel& model, double sampleRate);
     void reset();
 
@@ -59,7 +60,7 @@ private:
     void designFir (std::vector<float>& revTaps);
 
     const SpecModel* model_ = nullptr;
-    int bands_ = 0, ch_ = 0, nfft_ = 0, hop_ = 0, taps_ = 0, dfft_ = 0, nBlocks_ = 0, framesPerWindow_ = 0;
+    int bands_ = 0, ch_ = 0, nfft_ = 0, winLen_ = 0, hop_ = 0, taps_ = 0, dfft_ = 0, nBlocks_ = 0, framesPerWindow_ = 0;
     double sampleRate_ = 48000.0;
     int target_ = 0, source_ = 0;
     float intensity_ = 1.0f, analysisGain_ = 1.0f;

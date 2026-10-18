@@ -160,17 +160,12 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
         g.drawText (name, r.reduced (6, 0), juce::Justification::centredLeft);
     };
 
-    // The model was trained on 48 kHz audio. At other rates the frequencies stay right, the analysis timing is only approximate.
-    const double sr = audioProcessor.hostSampleRate.load();
-    if (std::abs (sr - 48000.0) > 1.0 || ! audioProcessor.modelLoaded())
+    // Hop, window and filter length are kept the same in time at every host rate, so only a failed model load is shown.
+    if (! audioProcessor.modelLoaded())
     {
         g.setColour (juce::Colour (0xffffb347));
         g.setFont (juce::Font (juce::FontOptions (12.0f)));
-        g.drawText (audioProcessor.modelLoaded()
-                        ? juce::String ("Sample rate is ") + juce::String (sr / 1000.0, 1)
-                              + " kHz: the model was trained at 48 kHz, set the project to 48 kHz for best accuracy"
-                        : juce::String ("Model failed to load"),
-                    24, getHeight() - 74, getWidth() - 48, 16, juce::Justification::centredLeft);
+        g.drawText ("Model failed to load", 24, getHeight() - 74, getWidth() - 48, 16, juce::Justification::centredLeft);
     }
 
     auto m = meterArea;
