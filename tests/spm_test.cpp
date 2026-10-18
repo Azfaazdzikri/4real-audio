@@ -131,17 +131,101 @@ int main (int argc, char** argv)
         ++caseNo;
     }
 
-    // other host rates must still run and stay finite
-    for (double rate : { 44100.0, 96000.0 })
+    // Other host rates: the same sound (defined in continuous time) must give about the same band gains as at 48 kHz.
+    // The network reacts strongly to tiny input changes for some pairs (47 kHz alone already differs by 2 dB there), so the
+    // limits only catch real breakage such as wrong band mapping or timing, not small jitter.
     {
-        SpecStream other;
-        other.prepare (m, rate);
-        other.setCondition (0, 0);
-        const auto y = run (other, input);
-        bool finite = true;
-        for (float v : y)
-            finite = finite && std::isfinite (v);
-        CHECK (finite, "non-finite output at %.0f Hz", rate);
+        const double kPi = 3.14159265358979323846;
+        auto makeSignal = [] (double rate, double seconds) {
+            std::vector<float> x (static_cast<size_t> (rate * seconds));
+            struct Partial { double f, phase, amp; };
+            std::vector<Partial> parts;
+            unsigned r = 12345;
+            auto rnd = [&r] { r = r * 1664525u + 1013904223u; return (r >> 8) / 16777216.0; };
+            for (int i = 0; i < 600; ++i)
+            {
+                const double f = 100.0 * std::pow (150.0, rnd()); // 100 Hz .. 15 kHz
+                parts.push_back ({ f, rnd() * 6.2831853, 1.0 / std::sqrt (f / 100.0) });
+            }
+            for (size_t n = 0; n < x.size(); ++n)
+            {
+                const double t = n / rate;
+                double v = 0.0;
+                for (const auto& p : parts)
+                    v += p.amp * std::sin (2.0 * 3.14159265358979323846 * p.f * t + p.phase);
+                x[n] = static_cast<float> (0.02 * v * (0.4 + 0.6 * std::exp (-t * 1.5)));
+            }
+            return x;
+        };
+        (void) kPi;
+
+        const double times[] = { 0.45, 0.70, 0.95, 1.20 };
+        auto gainsAt = [&] (double rate, int target, int source) {
+            SpecStream st;
+            st.prepare (m, rate);
+            st.setCondition (target, source);
+            st.setIntensity (1.0f);
+            const auto sig = makeSignal (rate, 1.3);
+            const int hop = std::max (16, static_cast<int> (std::lround (m.hop * rate / m.sampleRate)));
+            std::vector<float> scratch (static_cast<size_t> (hop));
+            std::vector<std::vector<double>> out;
+            int j = 0;
+            for (double t : times)
+            {
+                const int want = static_cast<int> (std::lround (t * rate / hop));
+                for (; j <= want; ++j)
+                    st.process (sig.data() + static_cast<size_t> (j) * static_cast<size_t> (hop), scratch.data(), hop);
+                out.push_back (st.hopGains());
+            }
+            return out;
+        };
+
+        for (const auto& c : golden.at ("cases").items)
+        {
+            const int source = static_cast<int> (c.at ("source").number), target = static_cast<int> (c.at ("target").number);
+            const auto ref = gainsAt (48000.0, target, source);
+            for (double rate : { 44100.0, 88200.0, 96000.0 })
+            {
+                const auto got = gainsAt (rate, target, source);
+                double worstRms = 0.0, worstMax = 0.0;
+                for (size_t k = 0; k < ref.size(); ++k)
+                {
+                    double sum = 0.0;
+                    for (int b = 0; b < m.bands; ++b)
+                    {
+                        const double d = got[k][static_cast<size_t> (b)] - ref[k][static_cast<size_t> (b)];
+                        sum += d * d;
+                        worstMax = std::max (worstMax, std::abs (d));
+                    }
+                    worstRms = std::max (worstRms, std::sqrt (sum / m.bands));
+                }
+                std::printf ("  source %d -> target %d at %5.0f Hz vs 48 kHz: gain curve rms %.2f dB, max %.2f dB\n", source, target, rate,
+                             worstRms, worstMax);
+                CHECK (worstRms < 2.5, "gain curves at %.0f Hz differ from 48 kHz by %.2f dB rms", rate, worstRms);
+                CHECK (worstMax < 6.0, "gain curves at %.0f Hz differ from 48 kHz by up to %.2f dB", rate, worstMax);
+            }
+        }
+
+        // the filtered audio must stay finite and not change level
+        for (double rate : { 44100.0, 88200.0, 96000.0 })
+        {
+            SpecStream other;
+            other.prepare (m, rate);
+            other.setCondition (0, 0);
+            const auto sig = makeSignal (rate, 1.0);
+            const auto y = run (other, sig);
+            double pi = 0.0, po = 0.0;
+            bool finite = true;
+            for (size_t i = 0; i < y.size(); ++i)
+            {
+                finite = finite && std::isfinite (y[i]);
+                pi += static_cast<double> (sig[i]) * sig[i];
+                po += static_cast<double> (y[i]) * y[i];
+            }
+            CHECK (finite, "non-finite output at %.0f Hz", rate);
+            const double dbChange = 10.0 * std::log10 (po / pi);
+            CHECK (std::abs (dbChange) < 12.0, "level changed by %.1f dB at %.0f Hz", dbChange, rate);
+        }
     }
 
     // cost: 10 s of audio, one channel
