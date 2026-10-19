@@ -74,6 +74,19 @@ public:
     int numSourceCells() const { return specLoaded ? juce::jmin (kMaxSources, spec.numSources) : 0; }
     juce::String sourceLabel (int index) const; // e.g. "Les Paul bridge"
 
+    // "My guitar": the player teaches the plugin the sound of every pickup position of the own guitar (a slot, 5 at most) and says
+    // which recorded source cell each one stands for ("slotCell0".."slotCell4"). The plugin then follows the pickup switch by itself.
+    static constexpr int kNumSlots = fourreal::SpecStream::kMaxSlots;
+    static bool myGuitarAvailable();
+    static const std::vector<juce::String>& sourceCellLabels(); // one per source cell, in .spm order
+    void requestLearn (int slot);  // start collecting the sound of a slot (UI thread)
+    void requestStopLearn();       // end the collection and keep it if it was long enough
+    void clearSlot (int slot);
+    std::atomic<int> learningSlotUi { -1 };
+    std::atomic<float> learnSecondsUi { 0.0f };
+    std::array<std::atomic<float>, kNumSlots> slotWeightUi {};
+    std::array<std::atomic<bool>, kNumSlots> slotValidUi {};
+
 private:
     void parameterChanged (const juce::String& parameterID, float newValue) override;
     void handleAsyncUpdate() override;
@@ -96,7 +109,23 @@ private:
     juce::SpinLock tapsLock;
     std::atomic<bool> tapsReady { false };
     int activeTarget = -1, activeSource = -1;
-    bool activeAuto = false;
+    bool activeAuto = false, activeSlots = false;
+
+    // calibrated slots: slotsShared is the copy the UI thread and the saved state use, slotsAudio the one the audio thread uses
+    struct SlotData
+    {
+        bool valid[kNumSlots] = {};
+        float feat[kNumSlots][64] = {};
+    };
+    SlotData slotsShared, slotsAudio;
+    juce::SpinLock slotsLock;
+    std::atomic<bool> slotsToAudio { false };
+    bool publishPending = false;
+    int appliedCell[kNumSlots] = { -1, -1, -1, -1, -1 };
+    int learningSlot = -1;
+    std::atomic<int> learnRequest { 0 }; // 0 = nothing, k + 1 = start slot k, -1 = stop
+    void handleLearning();
+    void applySlots();
     bool bypassed = false;
 
     // auto level: a slow estimate of the input level, so the network analyses roughly the level it was trained at

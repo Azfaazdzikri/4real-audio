@@ -133,13 +133,26 @@ juce::AudioProcessorValueTreeState::ParameterLayout FourRealAudioProcessor::crea
     StringArray sourceNames;
     for (const auto& m : fourreal::allModels())
         sourceNames.add (m.displayName);
+    // extra entries come last, so saved projects keep their guitar choice
     if (autoSourceAvailable())
-        sourceNames.add ("Auto (listens to my guitar)"); // last entry, so saved projects keep their guitar choice
+        sourceNames.add ("Auto (matches the sound to the nearest recorded guitar)");
+    if (myGuitarAvailable())
+        sourceNames.add ("My guitar (calibrated)");
     params.push_back (std::make_unique<AudioParameterChoice> (
         ParameterID { "srcGuitar", 1 }, "Source guitar", sourceNames, 0));
     params.push_back (std::make_unique<AudioParameterChoice> (
         ParameterID { "srcPos", 1 }, "Source pickup position",
         StringArray { "Position 1", "Position 2", "Position 3", "Position 4" }, 0)); // at most 4 recorded positions per guitar
+
+    if (myGuitarAvailable())
+    {
+        StringArray cellNames;
+        for (const auto& l : sourceCellLabels())
+            cellNames.add (l);
+        for (int k = 0; k < kNumSlots; ++k)
+            params.push_back (std::make_unique<AudioParameterChoice> (
+                ParameterID { "slotCell" + String (k), 1 }, "My pickup " + String (k + 1) + " stands for", cellNames, 0));
+    }
 
     const auto& target = targetModel();
     StringArray targetPositions;
@@ -161,28 +174,52 @@ juce::AudioProcessorValueTreeState::ParameterLayout FourRealAudioProcessor::crea
     return { params.begin(), params.end() };
 }
 
-bool FourRealAudioProcessor::autoSourceAvailable()
+namespace
 {
-    static const bool available = []
-    {
-        fourreal::SpecModel m;
-        std::string error;
-        return fourreal::SpecModel::load (SpmData::model_spm, static_cast<size_t> (SpmData::model_spmSize), m, error)
-               && m.autoSource.present && m.autoSource.enabled;
-    }();
-    return available;
-}
-
-juce::String FourRealAudioProcessor::sourceLabel (int index) const
+juce::String labelFor (const fourreal::SpmSourceInfo& s)
 {
-    if (! specLoaded || index < 0 || index >= spec.numSources)
-        return {};
-    const auto& s = spec.sources[static_cast<size_t> (index)];
     const auto* g = fourreal::findModelByCode (s.code);
     if (g == nullptr)
         return s.cell;
     const int pos = juce::jlimit (0, (int) g->positions.size() - 1, s.position);
     return juce::String (g->displayName) + " " + juce::String (g->positions[static_cast<size_t> (pos)].name).toLowerCase();
+}
+
+struct StaticModelInfo
+{
+    std::vector<juce::String> labels;
+    bool autoPresent = false, autoEnabled = false;
+};
+
+// The parameter layout is built before the processor owns a model, so read what it needs from the embedded file once.
+const StaticModelInfo& staticModelInfo()
+{
+    static const StaticModelInfo info = []
+    {
+        StaticModelInfo r;
+        fourreal::SpecModel m;
+        std::string error;
+        if (fourreal::SpecModel::load (SpmData::model_spm, static_cast<size_t> (SpmData::model_spmSize), m, error))
+        {
+            for (const auto& s : m.sources)
+                r.labels.push_back (labelFor (s));
+            r.autoPresent = m.autoSource.present;
+            r.autoEnabled = m.autoSource.present && m.autoSource.enabled;
+        }
+        return r;
+    }();
+    return info;
+}
+} // namespace
+
+bool FourRealAudioProcessor::autoSourceAvailable() { return staticModelInfo().autoEnabled; }
+bool FourRealAudioProcessor::myGuitarAvailable() { return staticModelInfo().autoPresent; }
+const std::vector<juce::String>& FourRealAudioProcessor::sourceCellLabels() { return staticModelInfo().labels; }
+
+juce::String FourRealAudioProcessor::sourceLabel (int index) const
+{
+    const auto& labels = sourceCellLabels();
+    return index >= 0 && index < (int) labels.size() ? labels[static_cast<size_t> (index)] : juce::String();
 }
 
 int FourRealAudioProcessor::sourceIndexFor (int guitar, int position) const
@@ -268,6 +305,7 @@ void FourRealAudioProcessor::prepareToPlay (double sampleRate, int /*samplesPerB
             st.reset();
         }
     activeTarget = activeSource = -1;
+    slotsToAudio.store (true); // the streams lose their slots when they are prepared again
     levelPower = -1.0f;
     autoGain = 1.0f;
 
@@ -338,18 +376,32 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
     const int target = juce::jlimit (0, juce::jmax (0, spec.numTargets - 1),
                                      static_cast<int> (apvts.getRawParameterValue ("tgtSel")->load() + 0.5f));
     const int guitarChoice = static_cast<int> (apvts.getRawParameterValue ("srcGuitar")->load() + 0.5f);
-    const bool autoSrc = specLoaded && autoSourceAvailable() && guitarChoice >= (int) fourreal::allModels().size();
-    const int source = autoSrc ? 0 : sourceIndexFor (guitarChoice, static_cast<int> (apvts.getRawParameterValue ("srcPos")->load() + 0.5f));
-    if (specLoaded && (target != activeTarget || source != activeSource || autoSrc != activeAuto))
+    const int numGuitars = (int) fourreal::allModels().size();
+    const bool autoSrc = specLoaded && autoSourceAvailable() && guitarChoice == numGuitars;
+    const bool myChoice = specLoaded && myGuitarAvailable() && guitarChoice == numGuitars + (autoSourceAvailable() ? 1 : 0);
+    if (specLoaded && myGuitarAvailable())
+    {
+        handleLearning();
+        applySlots();
+    }
+    int validSlots = 0;
+    for (int k = 0; k < kNumSlots; ++k)
+        validSlots += slotsAudio.valid[k] ? 1 : 0;
+    const bool slotsOn = myChoice && validSlots > 0; // "My guitar" without any calibrated slot behaves like the first manual guitar
+    const int manualGuitar = guitarChoice < numGuitars ? guitarChoice : 0;
+    const int source = (autoSrc || slotsOn) ? 0 : sourceIndexFor (manualGuitar, manualGuitar == guitarChoice ? static_cast<int> (apvts.getRawParameterValue ("srcPos")->load() + 0.5f) : 0);
+    if (specLoaded && (target != activeTarget || source != activeSource || autoSrc != activeAuto || slotsOn != activeSlots))
     {
         for (auto& st : stream)
         {
             st.setCondition (target, source);
+            st.setSlotMode (slotsOn);
             st.setAutoSource (autoSrc);
         }
         activeTarget = target;
         activeSource = source;
         activeAuto = autoSrc;
+        activeSlots = slotsOn;
         autoActiveUi.store (autoSrc);
     }
 
@@ -412,14 +464,14 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
 
     // Intensity of the learned tone change. Playing the target guitar's own selected pickup through itself changes nothing.
     float intensity = apvts.getRawParameterValue ("intensity")->load() * 0.01f;
-    if (specLoaded && ! autoSrc && spec.sources[static_cast<size_t> (source)].cell == spec.targetCells[static_cast<size_t> (target)])
+    if (specLoaded && ! autoSrc && ! slotsOn && spec.sources[static_cast<size_t> (source)].cell == spec.targetCells[static_cast<size_t> (target)])
         intensity = 0.0f;
 
     float* wk[2] = { work[0].data(), work[1].data() };
     for (int c = 0; c < active; ++c)
         std::copy (data[c], data[c] + n, wk[c]);
 
-    if (specLoaded && intensity > 0.001f)
+    if (specLoaded && (intensity > 0.001f || learningSlot >= 0)) // the engine also runs while a slot is being learned
     {
         if (engineIdle)
         {
@@ -433,12 +485,17 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
             stream[c].setAnalysisGain (autoGain);
             stream[c].process (wk[c], wk[c], n);
         }
-        if (autoSrc)
+        if (autoSrc || slotsOn)
         {
             const auto& w = stream[0].autoWeights();
             for (size_t i = 0; i < w.size() && i < autoWeightsUi.size(); ++i)
                 autoWeightsUi[i].store (static_cast<float> (w[i]), std::memory_order_relaxed);
         }
+        if (slotsOn)
+            for (int k = 0; k < kNumSlots; ++k)
+                slotWeightUi[(size_t) k].store (static_cast<float> (stream[0].slotWeights()[(size_t) k]), std::memory_order_relaxed);
+        if (learningSlot >= 0)
+            learnSecondsUi.store (static_cast<float> (stream[0].learnSeconds()), std::memory_order_relaxed);
     }
     else
         engineIdle = true;
@@ -461,17 +518,158 @@ juce::AudioProcessorEditor* FourRealAudioProcessor::createEditor()
     return new FourRealAudioEditor (*this);
 }
 
+void FourRealAudioProcessor::requestLearn (int slot)
+{
+    if (slot >= 0 && slot < kNumSlots)
+        learnRequest.store (slot + 1);
+}
+
+void FourRealAudioProcessor::requestStopLearn()
+{
+    learnRequest.store (-1);
+}
+
+void FourRealAudioProcessor::clearSlot (int slot)
+{
+    if (slot < 0 || slot >= kNumSlots)
+        return;
+    {
+        const juce::SpinLock::ScopedLockType lock (slotsLock);
+        slotsShared.valid[slot] = false;
+    }
+    slotValidUi[(size_t) slot].store (false);
+    slotsToAudio.store (true);
+}
+
+// Audio thread: start / stop of a calibration, and finishing it by itself after 8 s of loud playing.
+void FourRealAudioProcessor::handleLearning()
+{
+    const int req = learnRequest.exchange (0);
+    auto finish = [this]
+    {
+        float feat[64] = {};
+        const int k = learningSlot;
+        learningSlot = -1;
+        learningSlotUi.store (-1);
+        if (k >= 0 && stream[0].finishLearn (feat, 64))
+        {
+            slotsAudio.valid[k] = true;
+            std::copy (feat, feat + stream[0].featureSize(), slotsAudio.feat[k]);
+            appliedCell[k] = -1; // applySlots() sends it to the streams together with the mapped cell
+            publishPending = true;
+            slotValidUi[(size_t) k].store (true);
+        }
+    };
+    if (req > 0)
+    {
+        if (learningSlot >= 0)
+            finish();
+        learningSlot = req - 1;
+        learningSlotUi.store (learningSlot);
+        learnSecondsUi.store (0.0f);
+        stream[0].beginLearn();
+    }
+    else if (req == -1 && learningSlot >= 0)
+        finish();
+    else if (learningSlot >= 0 && stream[0].learnSeconds() >= 8.0)
+        finish();
+}
+
+// Audio thread: take over what the UI changed, publish a finished calibration, keep the mapped cells up to date.
+void FourRealAudioProcessor::applySlots()
+{
+    if (slotsToAudio.load())
+    {
+        const juce::SpinLock::ScopedTryLockType lock (slotsLock);
+        if (lock.isLocked())
+        {
+            for (int k = 0; k < kNumSlots; ++k)
+            {
+                slotsAudio.valid[k] = slotsShared.valid[k];
+                std::copy (slotsShared.feat[k], slotsShared.feat[k] + 64, slotsAudio.feat[k]);
+                appliedCell[k] = -1;
+            }
+            slotsToAudio.store (false);
+            publishPending = false; // slotsShared is newer than anything pending
+        }
+    }
+    if (publishPending)
+    {
+        const juce::SpinLock::ScopedTryLockType lock (slotsLock);
+        if (lock.isLocked())
+        {
+            for (int k = 0; k < kNumSlots; ++k)
+            {
+                slotsShared.valid[k] = slotsAudio.valid[k];
+                std::copy (slotsAudio.feat[k], slotsAudio.feat[k] + 64, slotsShared.feat[k]);
+            }
+            publishPending = false;
+        }
+    }
+    for (int k = 0; k < kNumSlots; ++k)
+    {
+        const int cell = static_cast<int> (apvts.getRawParameterValue ("slotCell" + juce::String (k))->load() + 0.5f);
+        if (cell != appliedCell[k])
+        {
+            for (auto& st : stream)
+                st.setSlot (k, slotsAudio.feat[k], cell, slotsAudio.valid[k]);
+            appliedCell[k] = cell;
+        }
+    }
+}
+
 void FourRealAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
 {
     if (auto xml = apvts.copyState().createXml())
+    {
+        while (auto* old = xml->getChildByName ("SLOTS"))
+            xml->removeChildElement (old, true);
+        auto* e = xml->createNewChildElement ("SLOTS");
+        const int n = specLoaded ? juce::jmin (64, spec.autoSource.nMask) : 0;
+        const juce::SpinLock::ScopedLockType lock (slotsLock);
+        for (int k = 0; k < kNumSlots; ++k)
+        {
+            if (! slotsShared.valid[k] || n == 0)
+                continue;
+            juce::StringArray values;
+            for (int i = 0; i < n; ++i)
+                values.add (juce::String (slotsShared.feat[k][i], 4));
+            e->setAttribute ("slot" + juce::String (k), values.joinIntoString (" "));
+        }
         copyXmlToBinary (*xml, destData);
+    }
 }
 
 void FourRealAudioProcessor::setStateInformation (const void* data, int sizeInBytes)
 {
     if (auto xml = getXmlFromBinary (data, sizeInBytes))
         if (xml->hasTagName (apvts.state.getType()))
+        {
+            SlotData loaded;
+            const int n = specLoaded ? juce::jmin (64, spec.autoSource.nMask) : 0;
+            if (auto* e = xml->getChildByName ("SLOTS"))
+            {
+                for (int k = 0; k < kNumSlots; ++k)
+                {
+                    const auto tokens = juce::StringArray::fromTokens (e->getStringAttribute ("slot" + juce::String (k)), " ", "");
+                    if (n > 0 && tokens.size() == n)
+                    {
+                        for (int i = 0; i < n; ++i)
+                            loaded.feat[k][i] = tokens[i].getFloatValue();
+                        loaded.valid[k] = true;
+                    }
+                }
+                xml->removeChildElement (e, true);
+            }
+            {
+                const juce::SpinLock::ScopedLockType lock (slotsLock);
+                slotsShared = loaded;
+            }
+            for (int k = 0; k < kNumSlots; ++k)
+                slotValidUi[(size_t) k].store (loaded.valid[k]);
+            slotsToAudio.store (true);
             apvts.replaceState (juce::ValueTree::fromXml (*xml));
+        }
 }
 
 // This creates new instances of the plugin.

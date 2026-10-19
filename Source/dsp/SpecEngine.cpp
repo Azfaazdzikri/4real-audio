@@ -51,6 +51,9 @@ float dotProduct (const float* a, const float* b, int n)
 #endif
 }
 
+constexpr double kSlotSeconds = 0.4;  // memory of the slot detector (loud frames): quick, the slots are far apart
+constexpr double kSlotTauDb = 1.0;    // softness of the slot weights
+constexpr double kMinLearnSeconds = 0.5;
 inline float sigmoidf (float x) { return 1.0f / (1.0f + std::exp (-x)); }
 inline float siluf (float x) { return x * sigmoidf (x); }
 } // namespace
@@ -283,7 +286,17 @@ void SpecStream::prepare (const SpecModel& m, double sampleRate)
     condVec_.assign (static_cast<size_t> (std::max (1, au.cond)), 0.0f);
     embMix_.assign (static_cast<size_t> (std::max (1, 2 * au.emb)), 0.0f);
     autoDecay_ = au.present ? std::exp (-(static_cast<double> (hop_) / sampleRate_) / au.avgSeconds) : 0.99;
-    autoOn_ = false;
+    autoOn_ = autoReq_ = slotMode_ = learning_ = false;
+    learnAcc_.assign (static_cast<size_t> (bands_), 0.0);
+    learnCount_ = 0.0;
+    slotW_.assign (static_cast<size_t> (kMaxSlots), 0.0);
+    slotFeat_.assign (static_cast<size_t> (kMaxSlots * std::max (1, au.nMask)), 0.0f);
+    for (int s = 0; s < kMaxSlots; ++s)
+    {
+        slotValid_[s] = false;
+        slotCell_[s] = 0;
+    }
+    slotDecay_ = std::exp (-(static_cast<double> (hop_) / sampleRate_) / kSlotSeconds);
 
     target_ = source_ = 0;
     reset();
@@ -305,6 +318,7 @@ void SpecStream::reset()
     std::fill (autoW_.begin(), autoW_.end(), 1.0 / static_cast<double> (autoW_.size()));
     std::fill (autoAcc_.begin(), autoAcc_.end(), 0.0);
     autoCount_ = 0.0;
+    learning_ = false;
 }
 
 void SpecStream::setCondition (int target, int source)
@@ -458,7 +472,27 @@ void SpecStream::designFir (std::vector<float>& rev)
     }
 }
 
+// Spectrum shape of a mean band power vector: dB, 3-band smoothing in power (edges repeated), mean removed inside the mask.
+void SpecStream::featureOf (const std::vector<double>& meanPower, std::vector<double>& out) const
+{
+    const SpmAuto& au = model_->autoSource;
+    size_t k = 0;
+    double mean = 0.0;
+    auto p = [&] (int b) { return meanPower[static_cast<size_t> (std::clamp (b, 0, bands_ - 1))] + 1e-14; };
+    for (int b = 0; b < bands_; ++b)
+    {
+        if (! au.mask[static_cast<size_t> (b)])
+            continue;
+        out[k] = 10.0 * std::log10 ((p (b - 1) + p (b) + p (b + 1)) / 3.0 + 1e-14);
+        mean += out[k++];
+    }
+    mean /= au.nMask;
+    for (int i = 0; i < au.nMask; ++i)
+        out[static_cast<size_t> (i)] -= mean;
+}
+
 // Running spectrum of the loud frames -> soft weights over the source cells (twin of AutoSource in spec_numpy.py).
+// Auto mode compares with the prototype of every recorded cell; slot mode with the player's own calibrated slots.
 void SpecStream::updateAuto()
 {
     const SpmAuto& au = model_->autoSource;
@@ -467,29 +501,52 @@ void SpecStream::updateAuto()
         total += std::pow (10.0, bandDb_[static_cast<size_t> (b)] / 10.0);
     if (10.0 * std::log10 (total + 1e-14) <= static_cast<double> (au.gateDb))
         return; // quiet frame (silence between notes): keep what was learned
+    const double decay = slotMode_ ? slotDecay_ : autoDecay_;
     for (int b = 0; b < bands_; ++b)
-        autoAcc_[static_cast<size_t> (b)] = autoAcc_[static_cast<size_t> (b)] * autoDecay_ + std::pow (10.0, bandDb_[static_cast<size_t> (b)] / 10.0);
-    autoCount_ = autoCount_ * autoDecay_ + 1.0;
+        autoAcc_[static_cast<size_t> (b)] = autoAcc_[static_cast<size_t> (b)] * decay + std::pow (10.0, bandDb_[static_cast<size_t> (b)] / 10.0);
+    autoCount_ = autoCount_ * decay + 1.0;
     if (autoCount_ < au.minFrames)
         return;
 
-    // spectrum shape of the running mean: dB, 3-band smoothing in power (edges repeated), mean removed inside the mask
-    std::vector<double>& p = autoMix_; // scratch, bands_ values
+    std::vector<double>& mean = autoMix_; // scratch, bands_ values
     for (int b = 0; b < bands_; ++b)
-        p[static_cast<size_t> (b)] = autoAcc_[static_cast<size_t> (b)] / autoCount_ + 1e-14; // mean power of the loud frames
-    size_t k = 0;
-    double mean = 0.0;
-    for (int b = 0; b < bands_; ++b)
+        mean[static_cast<size_t> (b)] = autoAcc_[static_cast<size_t> (b)] / autoCount_;
+    featureOf (mean, autoFeat_);
+
+    if (slotMode_)
     {
-        if (! au.mask[static_cast<size_t> (b)])
-            continue;
-        const double a = p[static_cast<size_t> (std::max (b - 1, 0))], c = p[static_cast<size_t> (b)], d = p[static_cast<size_t> (std::min (b + 1, bands_ - 1))];
-        autoFeat_[k] = 10.0 * std::log10 ((a + c + d) / 3.0 + 1e-14);
-        mean += autoFeat_[k++];
+        double dMin = 1.0e30;
+        for (int s = 0; s < kMaxSlots; ++s)
+        {
+            slotW_[static_cast<size_t> (s)] = -1.0;
+            if (! slotValid_[s])
+                continue;
+            const float* pr = slotFeat_.data() + static_cast<size_t> (s) * static_cast<size_t> (au.nMask);
+            double sum = 0.0;
+            for (int i = 0; i < au.nMask; ++i)
+            {
+                const double d = static_cast<double> (pr[i]) - autoFeat_[static_cast<size_t> (i)];
+                sum += d * d;
+            }
+            slotW_[static_cast<size_t> (s)] = std::sqrt (sum / au.nMask);
+            dMin = std::min (dMin, slotW_[static_cast<size_t> (s)]);
+        }
+        if (dMin > 1.0e29)
+            return; // no calibrated slot
+        double norm = 0.0;
+        for (auto& w : slotW_)
+        {
+            w = w < 0.0 ? 0.0 : std::exp (-(w - dMin) / kSlotTauDb);
+            norm += w;
+        }
+        std::fill (autoW_.begin(), autoW_.end(), 0.0);
+        for (int s = 0; s < kMaxSlots; ++s)
+        {
+            slotW_[static_cast<size_t> (s)] /= norm;
+            autoW_[static_cast<size_t> (std::clamp (slotCell_[s], 0, model_->numSources - 1))] += slotW_[static_cast<size_t> (s)];
+        }
+        return;
     }
-    mean /= au.nMask;
-    for (int i = 0; i < au.nMask; ++i)
-        autoFeat_[static_cast<size_t> (i)] -= mean;
 
     const int S = model_->numSources;
     double dMin = 1.0e30;
@@ -515,6 +572,79 @@ void SpecStream::updateAuto()
         w /= norm;
 }
 
+int SpecStream::validSlotCount() const
+{
+    int n = 0;
+    for (bool v : slotValid_)
+        n += v ? 1 : 0;
+    return n;
+}
+
+// Until a slot was recognised, the weights are shared evenly between the calibrated slots.
+static void uniformSlots (std::vector<double>& cellW, std::vector<double>& slotW, const bool* valid, const int* cell, int numCells)
+{
+    int n = 0;
+    for (int s = 0; s < SpecStream::kMaxSlots; ++s)
+        n += valid[s] ? 1 : 0;
+    if (n == 0)
+        return;
+    std::fill (cellW.begin(), cellW.end(), 0.0);
+    for (int s = 0; s < SpecStream::kMaxSlots; ++s)
+    {
+        slotW[static_cast<size_t> (s)] = valid[s] ? 1.0 / n : 0.0;
+        if (valid[s])
+            cellW[static_cast<size_t> (std::clamp (cell[s], 0, numCells - 1))] += 1.0 / n;
+    }
+}
+
+void SpecStream::setSlot (int slot, const float* feature, int cell, bool valid)
+{
+    if (model_ == nullptr || slot < 0 || slot >= kMaxSlots || model_->autoSource.nMask > kMaxMask)
+        return;
+    const size_t n = static_cast<size_t> (model_->autoSource.nMask);
+    if (valid && feature != nullptr)
+        std::memcpy (slotFeat_.data() + static_cast<size_t> (slot) * n, feature, n * sizeof (float));
+    slotValid_[slot] = valid && feature != nullptr;
+    slotCell_[slot] = std::clamp (cell, 0, model_->numSources - 1);
+    if (slotMode_ && autoCount_ < model_->autoSource.minFrames)
+        uniformSlots (autoW_, slotW_, slotValid_, slotCell_, model_->numSources);
+}
+
+void SpecStream::setSlotMode (bool on)
+{
+    if (model_ == nullptr || ! model_->autoSource.present)
+        on = false;
+    if (on != slotMode_)
+    {
+        std::fill (autoAcc_.begin(), autoAcc_.end(), 0.0); // the two modes average with different memories
+        autoCount_ = 0.0;
+    }
+    slotMode_ = on;
+    autoOn_ = (autoReq_ || slotMode_) && model_ != nullptr && model_->autoSource.present;
+    if (on)
+        uniformSlots (autoW_, slotW_, slotValid_, slotCell_, model_->numSources);
+}
+
+void SpecStream::beginLearn()
+{
+    std::fill (learnAcc_.begin(), learnAcc_.end(), 0.0);
+    learnCount_ = 0.0;
+    learning_ = model_ != nullptr && model_->autoSource.present;
+}
+
+bool SpecStream::finishLearn (float* feature, int capacity)
+{
+    learning_ = false;
+    if (model_ == nullptr || learnSeconds() < kMinLearnSeconds || capacity < model_->autoSource.nMask)
+        return false;
+    for (int b = 0; b < bands_; ++b)
+        autoMix_[static_cast<size_t> (b)] = learnAcc_[static_cast<size_t> (b)] / learnCount_;
+    featureOf (autoMix_, autoFeat_);
+    for (int i = 0; i < model_->autoSource.nMask; ++i)
+        feature[i] = static_cast<float> (autoFeat_[static_cast<size_t> (i)]);
+    return true;
+}
+
 // FiLM vectors of every block for the MIXED source embedding (the conditioning layer is not linear, so it runs here).
 void SpecStream::autoFilm()
 {
@@ -537,6 +667,18 @@ void SpecStream::autoFilm()
             filmBuf_[b * n + o] = au.filmB[b][o] + dotProduct (au.filmW[b].data() + o * C, condVec_.data(), static_cast<int> (C));
 }
 
+void SpecStream::learnFrame()
+{
+    double total = 0.0;
+    for (int b = 0; b < bands_; ++b)
+        total += std::pow (10.0, bandDb_[static_cast<size_t> (b)] / 10.0);
+    if (10.0 * std::log10 (total + 1e-14) <= static_cast<double> (model_->autoSource.gateDb))
+        return;
+    for (int b = 0; b < bands_; ++b)
+        learnAcc_[static_cast<size_t> (b)] += std::pow (10.0, bandDb_[static_cast<size_t> (b)] / 10.0);
+    learnCount_ += 1.0;
+}
+
 void SpecStream::startHop()
 {
     const SpecModel& m = *model_;
@@ -544,6 +686,8 @@ void SpecStream::startHop()
     if (haveFrame)
     {
         analyse();
+        if (learning_)
+            learnFrame();
         if (autoOn_)
         {
             updateAuto();

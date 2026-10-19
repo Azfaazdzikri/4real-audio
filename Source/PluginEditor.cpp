@@ -89,6 +89,40 @@ FourRealAudioEditor::FourRealAudioEditor (FourRealAudioProcessor& p)
     refreshSourcePositions();
     targetSelector.box.setEnabled (target.positions.size() > 1); // only one recorded position: nothing to choose
 
+    if (FourRealAudioProcessor::myGuitarAvailable())
+    {
+        styleLabel (slotHelp, "Pick \"My guitar\", then for each pickup position of YOUR guitar: choose which recorded guitar it is closest to, "
+                              "press Learn and play a few notes with that pickup (it stops by itself after 8 s or press Stop).",
+                    juce::Justification::topLeft);
+        slotHelp.setFont (juce::Font (juce::FontOptions (11.5f)));
+        slotHelp.setMinimumHorizontalScale (1.0f);
+        addChildComponent (slotHelp);
+        for (int k = 0; k < FourRealAudioProcessor::kNumSlots; ++k)
+        {
+            auto& col = slotCols[(size_t) k];
+            styleLabel (col.title, "PICKUP " + juce::String (k + 1), juce::Justification::centredLeft);
+            styleLabel (col.status, "empty", juce::Justification::centredLeft);
+            col.status.setFont (juce::Font (juce::FontOptions (12.0f)));
+            col.cell.addItemList ([] { juce::StringArray s; for (const auto& l : FourRealAudioProcessor::sourceCellLabels()) s.add (l); return s; }(), 1);
+            col.attachment = std::make_unique<Apvts::ComboBoxAttachment> (audioProcessor.apvts, "slotCell" + juce::String (k), col.cell);
+            col.learn.setButtonText ("Learn");
+            col.clear.setButtonText ("Clear");
+            col.learn.onClick = [this, k]
+            {
+                if (audioProcessor.learningSlotUi.load() == k)
+                    audioProcessor.requestStopLearn();
+                else
+                    audioProcessor.requestLearn (k);
+            };
+            col.clear.onClick = [this, k] { audioProcessor.clearSlot (k); };
+            addChildComponent (col.title);
+            addChildComponent (col.status);
+            addChildComponent (col.cell);
+            addChildComponent (col.learn);
+            addChildComponent (col.clear);
+        }
+    }
+
     setSize (880, 470);
     startTimerHz (30);
 }
@@ -130,9 +164,47 @@ void FourRealAudioEditor::refreshSourcePositions()
     shownSourceGuitar = guitar;
 }
 
+void FourRealAudioEditor::setSlotPanelVisible (bool shouldShow)
+{
+    if (shouldShow == slotsShown)
+        return;
+    slotsShown = shouldShow;
+    slotHelp.setVisible (shouldShow);
+    for (auto& col : slotCols)
+        for (juce::Component* comp : std::initializer_list<juce::Component*> { &col.title, &col.status, &col.cell, &col.learn, &col.clear })
+            comp->setVisible (shouldShow);
+    setSize (880, 470 + (shouldShow ? kSlotPanelHeight : 0));
+}
+
 void FourRealAudioEditor::timerCallback()
 {
-    const int guitar = static_cast<int> (audioProcessor.apvts.getRawParameterValue ("srcGuitar")->load() + 0.5f);
+    {
+        const int numGuitars = (int) fourreal::allModels().size();
+        const int choice = static_cast<int> (audioProcessor.apvts.getRawParameterValue ("srcGuitar")->load() + 0.5f);
+        const int myIndex = numGuitars + (FourRealAudioProcessor::autoSourceAvailable() ? 1 : 0);
+        setSlotPanelVisible (FourRealAudioProcessor::myGuitarAvailable() && choice == myIndex);
+    }
+    if (slotsShown)
+    {
+        const int learning = audioProcessor.learningSlotUi.load();
+        for (int k = 0; k < FourRealAudioProcessor::kNumSlots; ++k)
+        {
+            auto& col = slotCols[(size_t) k];
+            const bool valid = audioProcessor.slotValidUi[(size_t) k].load();
+            const juce::String status = learning == k ? juce::String ("play now: ") + juce::String (audioProcessor.learnSecondsUi.load(), 1) + " s"
+                                                      : (valid ? "learned" : "empty");
+            if (col.status.getText() != status)
+                col.status.setText (status, juce::dontSendNotification);
+            const juce::String learnText = learning == k ? "Stop" : "Learn";
+            if (col.learn.getButtonText() != learnText)
+                col.learn.setButtonText (learnText);
+            col.clear.setEnabled (valid && learning != k);
+        }
+        repaint (slotBars[0].getUnion (slotBars[FourRealAudioProcessor::kNumSlots - 1]).expanded (0, 4));
+    }
+
+    const int guitar = juce::jlimit (0, (int) fourreal::allModels().size(),
+                                     static_cast<int> (audioProcessor.apvts.getRawParameterValue ("srcGuitar")->load() + 0.5f));
     if (guitar != shownSourceGuitar)
         refreshSourcePositions();
 
@@ -173,7 +245,7 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
 
     g.setColour (juce::Colours::white.withAlpha (0.5f));
     g.setFont (juce::Font (juce::FontOptions (13.0f)));
-    g.drawText ("guitar tone transformer  -  v0.7.0 test build (spectral model + Auto source)",
+    g.drawText ("guitar tone transformer  -  v0.8.0 test build (spectral model + My guitar calibration)",
                 24, 44, getWidth() - 48, 18, juce::Justification::centredLeft);
 
     auto drawMeter = [&g, this] (juce::Rectangle<int> r, float level, const juce::String& name)
@@ -199,6 +271,20 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
         g.setFont (juce::Font (juce::FontOptions (12.0f)));
         g.drawText ("Model failed to load", 24, getHeight() - 74, getWidth() - 48, 16, juce::Justification::centredLeft);
     }
+
+    if (slotsShown)
+        for (int k = 0; k < FourRealAudioProcessor::kNumSlots; ++k)
+        {
+            const auto r = slotBars[(size_t) k];
+            g.setColour (juce::Colour (0xff2a2e38));
+            g.fillRoundedRectangle (r.toFloat(), 3.0f);
+            if (audioProcessor.slotValidUi[(size_t) k].load())
+            {
+                const float w = juce::jlimit (0.0f, 1.0f, audioProcessor.slotWeightUi[(size_t) k].load());
+                g.setColour (accent);
+                g.fillRoundedRectangle (r.withWidth (juce::roundToInt ((float) r.getWidth() * w)).toFloat(), 3.0f);
+            }
+        }
 
     auto m = meterArea;
     drawMeter (m.removeFromTop (18), inputLevel, "IN");
@@ -237,6 +323,31 @@ void FourRealAudioEditor::resized()
     autoLevelToggle.button.setBounds (toggleArea.removeFromTop (26));
 
     area.removeFromTop (14);
+
+    // "My guitar" panel (only shown when that source is chosen)
+    if (slotsShown)
+    {
+        auto panel = area.removeFromTop (kSlotPanelHeight - 14);
+        slotHelp.setBounds (panel.removeFromTop (32));
+        const int gap = 8;
+        const int colW = (panel.getWidth() - gap * (FourRealAudioProcessor::kNumSlots - 1)) / FourRealAudioProcessor::kNumSlots;
+        for (int k = 0; k < FourRealAudioProcessor::kNumSlots; ++k)
+        {
+            auto col = panel.removeFromLeft (colW);
+            panel.removeFromLeft (gap);
+            auto& c = slotCols[(size_t) k];
+            c.title.setBounds (col.removeFromTop (18));
+            c.cell.setBounds (col.removeFromTop (26));
+            col.removeFromTop (4);
+            auto buttons = col.removeFromTop (26);
+            c.learn.setBounds (buttons.removeFromLeft (colW * 6 / 10));
+            buttons.removeFromLeft (4);
+            c.clear.setBounds (buttons);
+            c.status.setBounds (col.removeFromTop (18));
+            slotBars[(size_t) k] = col.removeFromTop (8);
+        }
+        area.removeFromTop (6);
+    }
 
     // Knob row: INPUT, the target guitar's volume and tone knobs, OUTPUT. Centred.
     std::vector<Knob*> knobs { &inputKnob };

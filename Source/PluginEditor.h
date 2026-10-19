@@ -56,6 +56,21 @@ private:
     Toggle voicingToggle, keepLevelToggle, autoLevelToggle;
     juce::Label sourceHeader, targetHeader, autoLabel;
 
+    // "My guitar" panel: one column per pickup position of the player's own guitar
+    struct SlotColumn
+    {
+        juce::Label title, status;
+        juce::TextButton learn, clear;
+        juce::ComboBox cell;
+        std::unique_ptr<Apvts::ComboBoxAttachment> attachment;
+    };
+    static constexpr int kSlotPanelHeight = 140;
+    std::array<SlotColumn, FourRealAudioProcessor::kNumSlots> slotCols;
+    std::array<juce::Rectangle<int>, FourRealAudioProcessor::kNumSlots> slotBars;
+    juce::Label slotHelp;
+    bool slotsShown = false;
+    void setSlotPanelVisible (bool shouldShow);
+
     juce::Rectangle<int> meterArea;
     float inputLevel = 0.0f;
     float outputLevel = 0.0f;

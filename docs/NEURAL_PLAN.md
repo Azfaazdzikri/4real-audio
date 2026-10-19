@@ -104,3 +104,22 @@ make the FiLM vectors; the static EQ is the weighted mix. Uniform weights until 
 The choice "Auto" is the last entry of the source guitar list and exists only when the .spm has real prototypes
 (`auto.enabled`, set by `export_spec.py --protos prototypes.npz`). Without the file the exporter writes placeholder prototypes
 and `enabled=false` (tests still use them). Open: tau below 0.5, a check on real HSS recordings, Auto as default.
+
+## "My guitar" calibration (v0.8)
+
+Finding with a real Stratocaster HSS in Studio One: plain Auto read the humbucker bridge as Stratocaster SSS (97 %) and the neck as
+middle-neck / bridge-middle, never as neck. Auto only matches spectrum shapes against the lab guitars (top-1 cell right 34 % even on
+held-out notes of known guitars), the player's own chain (cable, interface, pots, cap) shifts the spectrum, and tau 0.5 makes weak
+matches look certain. So Auto stays as an experimental choice and is not the default.
+
+Better fit for the product (one guitar, a few fixed pickup positions): the player teaches the plugin THEIR pickup positions.
+- Source list entry "My guitar (calibrated)" (last entry). Up to 5 slots; each slot = learned spectrum shape of one pickup position of the
+  player's guitar + the recorded source cell it stands for (parameters `slotCell0..4`, choose the closest recorded cell as before).
+- Learn: collects loud frames (level above -50 dB) for up to 8 s (>= 0.5 s needed) -> the same feature as Auto (3-band smoothed shape,
+  mean removed, 150 Hz - 12 kHz). Stored in the plugin state (`SLOTS` element), not as parameters.
+- Run: running mean of loud frames with a 0.4 s memory, rms dB distance to the calibrated slots only, softmax(-(d - dmin) / 1 dB),
+  the slot weights are mapped to cell weights and use the same mixing of embedding / FiLM / static EQ as Auto. Silence keeps the weights.
+- Without any calibrated slot "My guitar" behaves like the first manual guitar.
+- `spm_test` (synthetic sounds): three taught sounds are recognised after 0.14 s (first lock) to 0.63 s (switching back), weight > 0.98;
+  a 0.2 s calibration is refused; silence moves the weights by < 0.004; a cleared slot disappears.
+Open: check on the real HSS (3 positions: bridge humbucker, middle, neck), memory length 0.4 s vs stability while playing chords.

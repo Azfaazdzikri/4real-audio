@@ -50,10 +50,28 @@ public:
     // Automatic source: instead of the fixed source cell the stream listens to the spectrum shape of the loud frames it hears
     // (about the last second) and mixes the source embedding and static EQ of all cells with soft weights. Needs a model with an
     // "auto" section (SpecModel::autoSource.present); otherwise this does nothing.
-    void setAutoSource (bool on) { autoOn_ = on && model_ != nullptr && model_->autoSource.present; }
+    void setAutoSource (bool on) { autoReq_ = on; autoOn_ = (autoReq_ || slotMode_) && model_ != nullptr && model_->autoSource.present; }
     bool autoSourceActive() const { return autoOn_; }
-    // Current weight of every source cell (sum 1), meaningful in auto mode.
+    // Current weight of every source cell (sum 1), meaningful in auto mode and in slot mode.
     const std::vector<double>& autoWeights() const { return autoW_; }
+
+    // "My guitar" calibration. The player teaches the plugin the spectrum of every pickup position of THEIR guitar (a slot) and
+    // says which recorded source cell each one stands for. In slot mode the stream compares what it hears only with those
+    // slots (quick, about 0.4 s of loud frames) and uses the cell of the best slot (soft weights) as the source.
+    static constexpr int kMaxSlots = 5;
+    static constexpr int kMaxMask = 64;
+    int featureSize() const { return model_ != nullptr ? model_->autoSource.nMask : 0; }
+    void beginLearn();                                   // start collecting loud frames (clears the previous collection)
+    bool learning() const { return learning_; }
+    double learnSeconds() const { return learnCount_ * static_cast<double> (hop_) / sampleRate_; } // loud seconds so far
+    // Ends the collection. Returns false (and keeps nothing) when less than half a second of loud playing was heard.
+    bool finishLearn (float* feature, int capacity);
+    void cancelLearn() { learning_ = false; }
+    void setSlot (int slot, const float* feature, int cell, bool valid); // feature has featureSize() values
+    void setSlotMode (bool on);
+    bool slotModeActive() const { return slotMode_; }
+    int validSlotCount() const;
+    const std::vector<double>& slotWeights() const { return slotW_; } // kMaxSlots values, 0 for empty slots
 
     // in and out may be the same buffer. Any numSamples.
     void process (const float* in, float* out, int numSamples);
@@ -67,7 +85,9 @@ private:
     void runNet();
     void designFir (std::vector<float>& revTaps);
     void updateAuto();
+    void learnFrame();
     void autoFilm();
+    void featureOf (const std::vector<double>& meanPower, std::vector<double>& out) const;
 
     const SpecModel* model_ = nullptr;
     int bands_ = 0, ch_ = 0, nfft_ = 0, winLen_ = 0, hop_ = 0, taps_ = 0, dfft_ = 0, nBlocks_ = 0, framesPerWindow_ = 0;
@@ -101,7 +121,15 @@ private:
     bool autoOn_ = false;
     std::vector<double> autoW_, autoAcc_, autoFeat_, autoMix_;
     std::vector<float> filmBuf_, condVec_, embMix_;
-    double autoCount_ = 0.0, autoDecay_ = 0.99;
+    double autoCount_ = 0.0, autoDecay_ = 0.99, slotDecay_ = 0.97;
+
+    // "My guitar" slots and calibration
+    bool autoReq_ = false, slotMode_ = false, learning_ = false;
+    double learnCount_ = 0.0;
+    std::vector<double> learnAcc_, slotW_;
+    std::vector<float> slotFeat_;     // [kMaxSlots][nMask]
+    int slotCell_[kMaxSlots] = {};
+    bool slotValid_[kMaxSlots] = {};
 
     // filtering
     std::vector<float> curRev_, prevRev_, buf_, ramp_;

@@ -187,6 +187,91 @@ int main (int argc, char** argv)
         (void) worstW;
     }
 
+    // "My guitar" slots: teach three different sounds, then check that they are recognised quickly and that silence changes nothing
+    if (m.autoSource.present)
+    {
+        auto coloured = [] (int kind, unsigned seed, int n) {
+            std::vector<float> x (static_cast<size_t> (n));
+            unsigned r = seed;
+            double y1 = 0.0, y2 = 0.0, x1 = 0.0;
+            for (auto& v : x)
+            {
+                r = r * 1664525u + 1013904223u;
+                const double w = static_cast<double> (r >> 8) / 8388608.0 - 1.0;
+                double y = 0.0;
+                if (kind == 0) y = w - 0.7 * x1;                                   // bright
+                else if (kind == 1) y = w + 0.9 * y1;                              // dark
+                else y = w + 2.0 * 0.97 * std::cos (2.0 * 3.14159265 * 2500.0 / 48000.0) * y1 - 0.97 * 0.97 * y2; // resonance
+                x1 = w;
+                y2 = y1;
+                y1 = y;
+                v = static_cast<float> (y);
+            }
+            double p = 0.0;
+            for (float v : x) p += static_cast<double> (v) * v;
+            const float g = static_cast<float> (0.05 / std::sqrt (p / n));
+            for (auto& v : x) v *= g;
+            return x;
+        };
+        const int cells[3] = { 3, 5, 7 };
+        SpecStream s2;
+        s2.prepare (m, 48000.0);
+        s2.setCondition (0, 0);
+        std::vector<float> feat (static_cast<size_t> (s2.featureSize()));
+        s2.beginLearn();
+        auto shortSig = coloured (0, 11, 9600); // 0.2 s: too short
+        run (s2, shortSig);
+        CHECK (! s2.finishLearn (feat.data(), static_cast<int> (feat.size())), "a 0.2 s calibration must be refused");
+        for (int k = 0; k < 3; ++k)
+        {
+            s2.beginLearn();
+            run (s2, coloured (k, 100u + static_cast<unsigned> (k), 96000));
+            CHECK (s2.finishLearn (feat.data(), static_cast<int> (feat.size())), "calibration %d failed", k);
+            s2.setSlot (k, feat.data(), cells[k], true);
+        }
+        CHECK (s2.validSlotCount() == 3, "expected 3 slots");
+        s2.reset();
+        s2.setSlotMode (true);
+        s2.setIntensity (1.0f);
+        const int hop = m.hop;
+        auto play = [&] (const std::vector<float>& sig, int slotWanted, double& secondsToLock) {
+            std::vector<float> scratch (static_cast<size_t> (hop));
+            secondsToLock = -1.0;
+            for (size_t j = 0; (j + 1) * static_cast<size_t> (hop) <= sig.size(); ++j)
+            {
+                s2.process (sig.data() + j * static_cast<size_t> (hop), scratch.data(), hop);
+                if (secondsToLock < 0.0 && s2.slotWeights()[static_cast<size_t> (slotWanted)] > 0.8)
+                    secondsToLock = static_cast<double> ((j + 1) * static_cast<size_t> (hop)) / 48000.0;
+            }
+        };
+        const int order[4] = { 0, 1, 2, 0 };
+        for (int step = 0; step < 4; ++step)
+        {
+            double lock = 0.0;
+            play (coloured (order[step], 500u + static_cast<unsigned> (step), 48000), order[step], lock);
+            const double wCell = s2.autoWeights()[static_cast<size_t> (cells[order[step]])];
+            std::printf ("  slots: sound %d -> slot weight %.3f, cell weight %.3f, locked after %.2f s\n", order[step],
+                         s2.slotWeights()[static_cast<size_t> (order[step])], wCell, lock);
+            CHECK (s2.slotWeights()[static_cast<size_t> (order[step])] > 0.9, "sound %d is not recognised (%.3f)", order[step],
+                   s2.slotWeights()[static_cast<size_t> (order[step])]);
+            CHECK (lock > 0.0 && lock < (step == 0 ? 0.9 : 0.7), "slot %d locked too slowly (%.2f s)", order[step], lock);
+            CHECK (wCell > 0.9, "source cell weight %.3f", wCell);
+        }
+        // silence between notes must not change the weights
+        const auto before = s2.slotWeights();
+        std::vector<float> silence (48000, 0.0f);
+        double dummy = 0.0;
+        play (silence, 0, dummy);
+        double change = 0.0;
+        for (size_t i = 0; i < before.size(); ++i)
+            change = std::max (change, std::abs (before[i] - s2.slotWeights()[i]));
+        std::printf ("  slots: largest weight change during 1 s of silence %.4f\n", change);
+        CHECK (change < 0.05, "weights changed by %.3f during silence", change);
+        // a slot that is cleared must disappear
+        s2.setSlot (1, nullptr, 5, false);
+        CHECK (s2.validSlotCount() == 2, "slot not cleared");
+    }
+
     // Other host rates: the same sound (defined in continuous time) must give about the same band gains as at 48 kHz.
     // The network reacts strongly to tiny input changes for some pairs (47 kHz alone already differs by 2 dB there), so the
     // limits only catch real breakage such as wrong band mapping or timing, not small jitter.
