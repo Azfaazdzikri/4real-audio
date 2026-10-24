@@ -2,11 +2,15 @@
 
 #include <array>
 #include <memory>
-#include <vector>
 
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "PluginProcessor.h"
+#include "ui/GuitarView.h"
+#include "ui/LibraryBrowser.h"
+#include "ui/Look.h"
 
+// One window for the whole library: guitar list on the left, the photo of the chosen guitar with its working pickup selector,
+// volume and tone knobs in the middle, and below it the source guitar ("My guitar" calibration), input/intensity/output.
 class FourRealAudioEditor : public juce::AudioProcessorEditor,
                             private juce::Timer
 {
@@ -26,14 +30,11 @@ private:
         juce::Label label;
         std::unique_ptr<Apvts::SliderAttachment> attachment; // declared last: destroyed first
     };
-
     struct Choice
     {
         juce::ComboBox box;
-        juce::Label label;
         std::unique_ptr<Apvts::ComboBoxAttachment> attachment;
     };
-
     struct Toggle
     {
         juce::ToggleButton button;
@@ -41,22 +42,24 @@ private:
     };
 
     void setupKnob (Knob&, const juce::String& paramId, const juce::String& text, bool isDb);
-    void setupChoice (Choice&, const juce::String& paramId, const juce::String& text);
-    void refreshSourcePositions();
     void setupToggle (Toggle&, const juce::String& paramId, const juce::String& text);
+    void refreshSourcePositions();
+    void setSlotPanelVisible (bool shouldShow);
     void timerCallback() override;
 
     FourRealAudioProcessor& audioProcessor;
+    fourreal::ui::Look look;
+    fourreal::ui::LibraryBrowser browser;
+    fourreal::ui::GuitarView view;
+    int shownGuitar = -1;
+    juce::Colour accent;
 
     Knob inputKnob, outputKnob, intensityKnob;
-    std::vector<std::unique_ptr<Knob>> modelKnobs; // target guitar: volumes first, then tones
-    juce::Colour accent;
     int shownSourceGuitar = -1;
-    Choice sourceGuitar, sourcePosition, targetSelector;
+    Choice sourceGuitar, sourcePosition;
     Toggle voicingToggle, keepLevelToggle, autoLevelToggle;
-    juce::Label sourceHeader, targetHeader, autoLabel;
+    juce::Label sourceHeader, autoLabel;
 
-    // "My guitar" panel: one column per pickup position of the player's own guitar
     struct SlotColumn
     {
         juce::Label title, status;
@@ -65,15 +68,14 @@ private:
         std::unique_ptr<Apvts::ComboBoxAttachment> attachment;
     };
     static constexpr int kSlotPanelHeight = 140;
+    static constexpr int kBaseHeight = 830;
     std::array<SlotColumn, FourRealAudioProcessor::kNumSlots> slotCols;
     std::array<juce::Rectangle<int>, FourRealAudioProcessor::kNumSlots> slotBars;
     juce::Label slotHelp;
     bool slotsShown = false;
-    void setSlotPanelVisible (bool shouldShow);
 
     juce::Rectangle<int> meterArea;
-    float inputLevel = 0.0f;
-    float outputLevel = 0.0f;
+    float inputLevel = 0.0f, outputLevel = 0.0f;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (FourRealAudioEditor)
 };

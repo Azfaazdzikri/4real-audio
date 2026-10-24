@@ -1,9 +1,12 @@
 #pragma once
 
 #include <array>
+#include <vector>
 
 #include <juce_audio_processors/juce_audio_processors.h>
 
+#include "Library.h"
+#include "License.h"
 #include "dsp/CrossfadeFir.h"
 #include "dsp/FilterDesign.h"
 #include "dsp/GuitarCircuit.h"
@@ -11,16 +14,19 @@
 #include "dsp/SpecEngine.h"
 #include "dsp/SpecModel.h"
 
-// 4real-audio - guitar tone transformer, v0.6.0 (spectral model).
+// 4real-audio - guitar tone transformer, v0.9.0 (one plugin, guitar library).
 //
-// One code base, one plugin per TARGET guitar (LP, 335, SG, PRS, RIC, STR, TCR, FLC): the
-// variant is chosen at compile time (FOURREAL_MODEL_<CODE>, set in CMakeLists.txt).
-// Signal path:  input gain -> spectral engine (per-pair EQ + small network that follows the played
-//               sound, applied as a min-phase FIR, so it can never add distortion or noise; the model
-//               comes from the embedded .spm file) -> volume/tone knob filter (physical model of the
-//               target guitar's pots) -> output gain.
-// The model was trained on recordings made with the knobs full, so the volume and tone knobs of the
-// target guitar are applied by the physical circuit model on top of it.
+// ONE plugin / standalone holds the whole guitar library (LP, 335, SG, PRS, RIC, STR, TCR, FLC, see Library.h): the player
+// picks which guitar the plugin sounds like, the way a piano app switches between its piano models. The controls of every
+// guitar (pickup selector, volume and tone knobs) are separate parameters ("LP_vol0", "STR_tone1", ...), so each guitar
+// remembers its own knob positions.
+// Signal path:  input gain -> spectral engine of the CURRENT guitar (per-pair EQ + small network that follows the played
+//               sound, applied as a min-phase FIR, so it can never add distortion or noise; the model comes from the embedded
+//               .spm file of that guitar) -> volume/tone knob filter (physical model of that guitar's pots) -> output gain.
+// The models were trained on recordings made with the knobs full, so the volume and tone knobs of the target guitar are
+// applied by the physical circuit model on top of it.
+// Switching guitar fades the sound out and in over two short slices (no click) and never allocates on the audio thread:
+// the engines of all guitars are built in prepareToPlay().
 class FourRealAudioProcessor : public juce::AudioProcessor,
                                private juce::AudioProcessorValueTreeState::Listener,
                                private juce::AsyncUpdater
@@ -37,10 +43,7 @@ public:
     juce::AudioProcessorEditor* createEditor() override;
     bool hasEditor() const override { return true; }
 
-    const juce::String getName() const override;
-
-    // The guitar this plugin variant sounds like.
-    static const fourreal::GuitarModel& targetModel();
+    const juce::String getName() const override { return "4real-audio"; }
     bool acceptsMidi() const override { return false; }
     bool producesMidi() const override { return false; }
     bool isMidiEffect() const override { return false; }
@@ -59,23 +62,35 @@ public:
 
     juce::AudioProcessorValueTreeState apvts;
 
+    // --- guitar library -----------------------------------------------------------------------------------------------
+    static const fourreal::Library& library() { return fourreal::Library::get(); }
+    static int numGuitars() { return library().size(); }
+    // Parameter id of a control of a library guitar: kind is "sel", "vol" or "tone" ("sel" has no index).
+    // Examples: guitarParamId (0, "sel") = "LP_sel", guitarParamId (5, "tone", 1) = "STR_tone1".
+    static juce::String guitarParamId (int guitar, const char* kind, int index = 0);
+    // The guitar the user chose (parameter "guitar"). The audio engine follows it with a short fade.
+    int selectedGuitar() const;
+    void selectGuitar (int index); // from the editor (message thread)
+    bool isGuitarUnlocked (int index) const { return fourreal::LicenseManager::isUnlocked (library().at (index)); }
+
     // Latest block peaks (linear gain), read by the editor for the meters.
     std::atomic<float> inputPeak { 0.0f };
     std::atomic<float> outputPeak { 0.0f };
     std::atomic<double> hostSampleRate { 48000.0 };
-    bool modelLoaded() const { return specLoaded; }
+    bool modelLoaded() const { return library().allLoaded(); }
 
     // Automatic source: the engine listens to the spectrum of the guitar and mixes the source cells itself. The choice "Auto" is
-    // the last entry of the source guitar list and only exists when the model carries real prototypes.
+    // the last entry of the source guitar list and only exists when the models carry real prototypes.
     static bool autoSourceAvailable();
     static constexpr int kMaxSources = 32;
     std::array<std::atomic<float>, kMaxSources> autoWeightsUi {}; // current weight of every source cell (for the editor)
     std::atomic<bool> autoActiveUi { false };
-    int numSourceCells() const { return specLoaded ? juce::jmin (kMaxSources, spec.numSources) : 0; }
+    int numSourceCells() const { return juce::jmin (kMaxSources, library().reference().numSources); }
     juce::String sourceLabel (int index) const; // e.g. "Les Paul bridge"
 
     // "My guitar": the player teaches the plugin the sound of every pickup position of the own guitar (a slot, 5 at most) and says
     // which recorded source cell each one stands for ("slotCell0".."slotCell4"). The plugin then follows the pickup switch by itself.
+    // The calibration belongs to the player's guitar, so it is shared by all library guitars.
     static constexpr int kNumSlots = fourreal::SpecStream::kMaxSlots;
     static bool myGuitarAvailable();
     static const std::vector<juce::String>& sourceCellLabels(); // one per source cell, in .spm order
@@ -93,23 +108,34 @@ private:
     std::vector<float> designKnobTaps() const;
     int sourceIndexFor (int guitar, int position) const;
     void processSlice (float* const* data, int numChannels, int n);
+    void switchEngineTo (int guitar);
 
     juce::StringArray voicingParamIds;
+    std::atomic<float>* guitarRaw = nullptr;       // parameter "guitar"
+    std::vector<std::atomic<float>*> selectorRaw;  // pickup selector parameter of every library guitar
 
     juce::SmoothedValue<float> inputGain { 1.0f };
     juce::SmoothedValue<float> outputGain { 1.0f };
 
     static constexpr int kSlice = 512;
 
-    fourreal::SpecModel spec;
-    bool specLoaded = false;
-    fourreal::SpecStream stream[2];
+    // One spectral engine (a stream per channel) for every library guitar, all built in prepareToPlay().
+    struct Engine
+    {
+        fourreal::SpecStream stream[2];
+        int activeTarget = -1, activeSource = -1;
+        bool activeAuto = false, activeSlots = false;
+    };
+    std::vector<Engine> engines;
+    int activeGuitar = 0; // audio thread: the guitar the engine sounds like right now
+    int fadePhase = 0;    // 0 = none, 1 = fading out before a guitar switch, 2 = fading in after it
+    const fourreal::SpecModel& activeSpec() const { return library().at (activeGuitar).spec; }
+    fourreal::SpecStream* activeStreams() { return engines[static_cast<size_t> (activeGuitar)].stream; }
+
     fourreal::CrossfadeFir knobFir;
     std::vector<float> pendingKnobTaps;
     juce::SpinLock tapsLock;
     std::atomic<bool> tapsReady { false };
-    int activeTarget = -1, activeSource = -1;
-    bool activeAuto = false, activeSlots = false;
 
     // calibrated slots: slotsShared is the copy the UI thread and the saved state use, slotsAudio the one the audio thread uses
     struct SlotData

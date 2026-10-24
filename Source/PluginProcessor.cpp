@@ -1,39 +1,10 @@
 #include "PluginProcessor.h"
 #include "PluginEditor.h"
 
-#include <SpmData.h>
-
 #include <cstring>
 
 namespace
 {
-    // Plugin variant, chosen by the compile definition FOURREAL_MODEL_<CODE> (see CMakeLists.txt).
-    const char* variantCode()
-    {
-#if defined(FOURREAL_MODEL_LP)
-        return "LP";
-#elif defined(FOURREAL_MODEL_335)
-        return "335";
-#elif defined(FOURREAL_MODEL_SG)
-        return "SG";
-#elif defined(FOURREAL_MODEL_PRS)
-        return "PRS";
-#elif defined(FOURREAL_MODEL_RIC)
-        return "RIC";
-#elif defined(FOURREAL_MODEL_STR)
-        return "STR";
-#elif defined(FOURREAL_MODEL_TCR)
-        return "TCR";
-#elif defined(FOURREAL_MODEL_FLC)
-        return "FLC";
-#else
-        return "LP"; // default for IDE builds without a variant definition
-#endif
-    }
-
-    juce::String volId (size_t i) { return "vol" + juce::String ((int) i); }
-    juce::String toneId (size_t i) { return "tone" + juce::String ((int) i); }
-
     float peakOf (const juce::AudioBuffer<float>& buffer)
     {
         float peak = 0.0f;
@@ -60,18 +31,23 @@ namespace
                 buffer.getWritePointer (ch)[i] *= g;
         }
     }
+
+    juce::String labelFor (const fourreal::SpmSourceInfo& s)
+    {
+        const auto* g = fourreal::findModelByCode (s.code);
+        if (g == nullptr)
+            return s.cell;
+        const int pos = juce::jlimit (0, (int) g->positions.size() - 1, s.position);
+        return juce::String (g->displayName) + " " + juce::String (g->positions[static_cast<size_t> (pos)].name).toLowerCase();
+    }
 }
 
-const fourreal::GuitarModel& FourRealAudioProcessor::targetModel()
+juce::String FourRealAudioProcessor::guitarParamId (int guitar, const char* kind, int index)
 {
-    static const fourreal::GuitarModel* model = fourreal::findModelByCode (variantCode());
-    jassert (model != nullptr);
-    return *model;
-}
-
-const juce::String FourRealAudioProcessor::getName() const
-{
-    return juce::String ("4real-audio ") + variantCode();
+    juce::String id = juce::String (library().at (guitar).code()) + "_" + kind;
+    if (std::strcmp (kind, "sel") != 0)
+        id << index;
+    return id;
 }
 
 FourRealAudioProcessor::FourRealAudioProcessor()
@@ -80,24 +56,29 @@ FourRealAudioProcessor::FourRealAudioProcessor()
                           .withOutput ("Output", juce::AudioChannelSet::stereo(), true)),
       apvts (*this, nullptr, "STATE", createLayout())
 {
-    {
-        std::string error;
-        specLoaded = fourreal::SpecModel::load (SpmData::model_spm, static_cast<size_t> (SpmData::model_spmSize), spec, error);
-        jassert (specLoaded); // the embedded .spm must always parse
-        if (specLoaded)
-            for (auto& st : stream)
-                st.prepare (spec, 48000.0);
-    }
+    jassert (library().allLoaded());   // the embedded .spm files must always parse
+    jassert (library().consistent());  // and agree on the source side
 
-    const auto& target = targetModel();
-    voicingParamIds = { "voicing", "keepLevel", "srcGuitar", "srcPos", "tgtSel" };
-    for (size_t i = 0; i < target.volumes.size(); ++i)
-        voicingParamIds.add (volId (i));
-    for (size_t i = 0; i < target.tones.size(); ++i)
-        voicingParamIds.add (toneId (i));
+    engines.resize (static_cast<size_t> (numGuitars()));
+
+    voicingParamIds = { "guitar", "voicing", "keepLevel" };
+    for (int g = 0; g < numGuitars(); ++g)
+    {
+        const auto& m = *library().at (g).guitar;
+        voicingParamIds.add (guitarParamId (g, "sel"));
+        for (size_t i = 0; i < m.volumes.size(); ++i)
+            voicingParamIds.add (guitarParamId (g, "vol", (int) i));
+        for (size_t i = 0; i < m.tones.size(); ++i)
+            voicingParamIds.add (guitarParamId (g, "tone", (int) i));
+    }
 
     for (const auto& id : voicingParamIds)
         apvts.addParameterListener (id, this);
+
+    // raw parameter pointers for the audio thread (looking a parameter up by name would build a String every slice)
+    guitarRaw = apvts.getRawParameterValue ("guitar");
+    for (int g = 0; g < numGuitars(); ++g)
+        selectorRaw.push_back (apvts.getRawParameterValue (guitarParamId (g, "sel")));
 }
 
 FourRealAudioProcessor::~FourRealAudioProcessor()
@@ -112,6 +93,13 @@ juce::AudioProcessorValueTreeState::ParameterLayout FourRealAudioProcessor::crea
     using namespace juce;
 
     std::vector<std::unique_ptr<RangedAudioParameter>> params;
+    const auto& lib = library();
+
+    // The guitar of the library the plugin sounds like. Entries are only ever appended, so saved projects keep their choice.
+    StringArray guitarNames;
+    for (const auto& e : lib.entries())
+        guitarNames.add (e.displayName());
+    params.push_back (std::make_unique<AudioParameterChoice> (ParameterID { "guitar", 1 }, "Guitar", guitarNames, 0));
 
     auto gainParam = [&params] (const char* id, const char* name)
     {
@@ -154,67 +142,51 @@ juce::AudioProcessorValueTreeState::ParameterLayout FourRealAudioProcessor::crea
                 ParameterID { "slotCell" + String (k), 1 }, "My pickup " + String (k + 1) + " stands for", cellNames, 0));
     }
 
-    const auto& target = targetModel();
-    StringArray targetPositions;
-    for (const auto& p : target.positions)
-        targetPositions.add (p.name);
-    params.push_back (std::make_unique<AudioParameterChoice> (
-        ParameterID { "tgtSel", 1 }, "Pickup selector", targetPositions, 0));
-
-    auto knobParam = [&params] (const juce::String& id, const juce::String& name)
+    // The controls of every library guitar: its pickup selector, volume knobs and tone knobs. Each guitar keeps its own.
+    for (int g = 0; g < lib.size(); ++g)
     {
-        params.push_back (std::make_unique<AudioParameterFloat> (
-            ParameterID { id, 1 }, name, NormalisableRange<float> (0.0f, 10.0f, 0.1f), 10.0f));
-    };
-    for (size_t i = 0; i < target.volumes.size(); ++i)
-        knobParam (volId (i), target.volumes[i].label);
-    for (size_t i = 0; i < target.tones.size(); ++i)
-        knobParam (toneId (i), target.tones[i].label);
+        const auto& m = *lib.at (g).guitar;
+        const String prefix = String (m.displayName) + " ";
+
+        StringArray positions;
+        for (const auto& p : m.positions)
+            positions.add (p.name);
+        params.push_back (std::make_unique<AudioParameterChoice> (
+            ParameterID { guitarParamId (g, "sel"), 1 }, prefix + "pickup selector", positions, 0));
+
+        auto knobParam = [&params, &prefix] (const String& id, const String& name)
+        {
+            params.push_back (std::make_unique<AudioParameterFloat> (
+                ParameterID { id, 1 }, prefix + name, NormalisableRange<float> (0.0f, 10.0f, 0.1f), 10.0f));
+        };
+        for (size_t i = 0; i < m.volumes.size(); ++i)
+            knobParam (guitarParamId (g, "vol", (int) i), m.volumes[i].label);
+        for (size_t i = 0; i < m.tones.size(); ++i)
+            knobParam (guitarParamId (g, "tone", (int) i), m.tones[i].label);
+    }
 
     return { params.begin(), params.end() };
 }
 
-namespace
+bool FourRealAudioProcessor::autoSourceAvailable()
 {
-juce::String labelFor (const fourreal::SpmSourceInfo& s)
-{
-    const auto* g = fourreal::findModelByCode (s.code);
-    if (g == nullptr)
-        return s.cell;
-    const int pos = juce::jlimit (0, (int) g->positions.size() - 1, s.position);
-    return juce::String (g->displayName) + " " + juce::String (g->positions[static_cast<size_t> (pos)].name).toLowerCase();
+    const auto& a = library().reference().autoSource;
+    return a.present && a.enabled;
 }
 
-struct StaticModelInfo
-{
-    std::vector<juce::String> labels;
-    bool autoPresent = false, autoEnabled = false;
-};
+bool FourRealAudioProcessor::myGuitarAvailable() { return library().reference().autoSource.present; }
 
-// The parameter layout is built before the processor owns a model, so read what it needs from the embedded file once.
-const StaticModelInfo& staticModelInfo()
+const std::vector<juce::String>& FourRealAudioProcessor::sourceCellLabels()
 {
-    static const StaticModelInfo info = []
+    static const std::vector<juce::String> labels = []
     {
-        StaticModelInfo r;
-        fourreal::SpecModel m;
-        std::string error;
-        if (fourreal::SpecModel::load (SpmData::model_spm, static_cast<size_t> (SpmData::model_spmSize), m, error))
-        {
-            for (const auto& s : m.sources)
-                r.labels.push_back (labelFor (s));
-            r.autoPresent = m.autoSource.present;
-            r.autoEnabled = m.autoSource.present && m.autoSource.enabled;
-        }
+        std::vector<juce::String> r;
+        for (const auto& s : library().reference().sources)
+            r.push_back (labelFor (s));
         return r;
     }();
-    return info;
+    return labels;
 }
-} // namespace
-
-bool FourRealAudioProcessor::autoSourceAvailable() { return staticModelInfo().autoEnabled; }
-bool FourRealAudioProcessor::myGuitarAvailable() { return staticModelInfo().autoPresent; }
-const std::vector<juce::String>& FourRealAudioProcessor::sourceCellLabels() { return staticModelInfo().labels; }
 
 juce::String FourRealAudioProcessor::sourceLabel (int index) const
 {
@@ -222,38 +194,58 @@ juce::String FourRealAudioProcessor::sourceLabel (int index) const
     return index >= 0 && index < (int) labels.size() ? labels[static_cast<size_t> (index)] : juce::String();
 }
 
+int FourRealAudioProcessor::selectedGuitar() const
+{
+    return juce::jlimit (0, numGuitars() - 1, static_cast<int> (guitarRaw->load() + 0.5f));
+}
+
+void FourRealAudioProcessor::selectGuitar (int index)
+{
+    if (auto* p = dynamic_cast<juce::AudioParameterChoice*> (apvts.getParameter ("guitar")))
+    {
+        index = juce::jlimit (0, numGuitars() - 1, index);
+        if (p->getIndex() == index)
+            return;
+        p->beginChangeGesture();
+        *p = index;
+        p->endChangeGesture();
+    }
+}
+
 int FourRealAudioProcessor::sourceIndexFor (int guitar, int position) const
 {
     const auto& models = fourreal::allModels();
     const auto& g = models[static_cast<size_t> (juce::jlimit (0, (int) models.size() - 1, guitar))];
     const int pos = juce::jlimit (0, (int) g.positions.size() - 1, position);
-    const int idx = specLoaded ? spec.findSource (g.code, pos) : -1;
+    const int idx = library().at (activeGuitar).loaded ? activeSpec().findSource (g.code, pos) : -1;
     jassert (idx >= 0);
     return idx >= 0 ? idx : 0;
 }
 
+// Message thread: the filter of the knobs of the guitar the user chose.
 std::vector<float> FourRealAudioProcessor::designKnobTaps() const
 {
-    auto get = [this] (const char* id) { return apvts.getRawParameterValue (id)->load(); };
+    auto get = [this] (const juce::String& id) { return apvts.getRawParameterValue (id)->load(); };
     using namespace fourreal;
 
-    const int tgtSel = static_cast<int> (get ("tgtSel") + 0.5f);
+    const int g = selectedGuitar();
+    const auto& targetDef = *library().at (g).guitar;
+    const int tgtSel = static_cast<int> (get (guitarParamId (g, "sel")) + 0.5f);
 
     // volume / tone knobs of the target guitar: physical model, "knobs now" relative to "knobs full"
     // (the model was trained with the knobs full, so at full knobs this is the identity).
     const auto grid = makeFrequencyGrid (currentSampleRate);
-    const auto& targetDef = targetModel();
     ModelSettings full, now;
     full.position = now.position = juce::jlimit (0, (int) targetDef.positions.size() - 1, tgtSel);
     for (size_t i = 0; i < targetDef.volumes.size(); ++i)
     {
         full.volumes.push_back (10.0);
-        now.volumes.push_back (get (volId (i).toRawUTF8()));
+        now.volumes.push_back (get (guitarParamId (g, "vol", (int) i)));
     }
     for (size_t i = 0; i < targetDef.tones.size(); ++i)
     {
         full.tones.push_back (10.0);
-        now.tones.push_back (get (toneId (i).toRawUTF8()));
+        now.tones.push_back (get (guitarParamId (g, "tone", (int) i)));
     }
     return designVoicingTaps (modelResponse (grid, targetDef, full), modelResponse (grid, targetDef, now),
                               grid, currentSampleRate, get ("keepLevel") > 0.5f);
@@ -298,13 +290,24 @@ void FourRealAudioProcessor::prepareToPlay (double sampleRate, int /*samplesPerB
     }
     engineIdle = true;
 
-    if (specLoaded)
-        for (auto& st : stream)
-        {
-            st.prepare (spec, sampleRate);
-            st.reset();
-        }
-    activeTarget = activeSource = -1;
+    // Build the engines of ALL library guitars now, so that switching guitar later never allocates on the audio thread.
+    for (int g = 0; g < numGuitars(); ++g)
+    {
+        auto& e = engines[static_cast<size_t> (g)];
+        const auto& entry = library().at (g);
+        for (auto& st : e.stream)
+            if (entry.loaded)
+            {
+                st.prepare (entry.spec, sampleRate);
+                st.reset();
+            }
+        e.activeTarget = e.activeSource = -1;
+        e.activeAuto = e.activeSlots = false;
+    }
+    activeGuitar = selectedGuitar();
+    fadePhase = 0;
+    learningSlot = -1;
+    learningSlotUi.store (-1);
     slotsToAudio.store (true); // the streams lose their slots when they are prepared again
     levelPower = -1.0f;
     autoGain = 1.0f;
@@ -369,16 +372,62 @@ void FourRealAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juc
     outputPeak.store (peakOf (buffer));
 }
 
+// The engine now sounds like another library guitar: start its streams clean and make the slice code apply the pair again.
+void FourRealAudioProcessor::switchEngineTo (int guitar)
+{
+    activeGuitar = juce::jlimit (0, numGuitars() - 1, guitar);
+    auto& e = engines[static_cast<size_t> (activeGuitar)];
+    if (library().at (activeGuitar).loaded)
+        for (auto& st : e.stream)
+            st.reset();
+    e.activeTarget = e.activeSource = -1;
+    e.activeAuto = e.activeSlots = false;
+    for (auto& c : appliedCell)
+        c = -1; // applySlots() sends the calibration to the new streams
+    if (learningSlot >= 0)
+    {
+        learningSlot = -1;
+        learningSlotUi.store (-1);
+    }
+    engineIdle = true;
+}
+
 // n <= kSlice samples, in place.
 void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, int n)
 {
+    // --- which library guitar is played: a change fades the sound out (this slice), switches, and fades in (next slice)
+    {
+        const int wanted = selectedGuitar();
+        const bool silentNow = wetMix.getTargetValue() < 0.5f && ! wetMix.isSmoothing();
+        if (wanted != activeGuitar && fadePhase == 0)
+        {
+            if (silentNow || engineIdle)
+                switchEngineTo (wanted); // the engine is not audible right now, nothing to fade
+            else
+                fadePhase = 1;
+        }
+    }
+
+    const auto& entry = library().at (activeGuitar);
+    const auto& spec = entry.spec;
+    const bool specLoaded = entry.loaded;
+    auto& eng = engines[static_cast<size_t> (activeGuitar)];
+    fourreal::SpecStream* const stream = eng.stream;
+
+    // A guitar that is not unlocked passes the sound through untouched.
+    if (! fourreal::LicenseManager::isUnlocked (entry))
+    {
+        fadePhase = 0;
+        return;
+    }
+
     // Which (target position, source cell) pair is selected right now.
     const int target = juce::jlimit (0, juce::jmax (0, spec.numTargets - 1),
-                                     static_cast<int> (apvts.getRawParameterValue ("tgtSel")->load() + 0.5f));
+                                     static_cast<int> (selectorRaw[static_cast<size_t> (activeGuitar)]->load() + 0.5f));
     const int guitarChoice = static_cast<int> (apvts.getRawParameterValue ("srcGuitar")->load() + 0.5f);
-    const int numGuitars = (int) fourreal::allModels().size();
-    const bool autoSrc = specLoaded && autoSourceAvailable() && guitarChoice == numGuitars;
-    const bool myChoice = specLoaded && myGuitarAvailable() && guitarChoice == numGuitars + (autoSourceAvailable() ? 1 : 0);
+    const int numSourceGuitars = (int) fourreal::allModels().size();
+    const bool autoSrc = specLoaded && autoSourceAvailable() && guitarChoice == numSourceGuitars;
+    const bool myChoice = specLoaded && myGuitarAvailable() && guitarChoice == numSourceGuitars + (autoSourceAvailable() ? 1 : 0);
     if (specLoaded && myGuitarAvailable())
     {
         handleLearning();
@@ -388,20 +437,20 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
     for (int k = 0; k < kNumSlots; ++k)
         validSlots += slotsAudio.valid[k] ? 1 : 0;
     const bool slotsOn = myChoice && validSlots > 0; // "My guitar" without any calibrated slot behaves like the first manual guitar
-    const int manualGuitar = guitarChoice < numGuitars ? guitarChoice : 0;
+    const int manualGuitar = guitarChoice < numSourceGuitars ? guitarChoice : 0;
     const int source = (autoSrc || slotsOn) ? 0 : sourceIndexFor (manualGuitar, manualGuitar == guitarChoice ? static_cast<int> (apvts.getRawParameterValue ("srcPos")->load() + 0.5f) : 0);
-    if (specLoaded && (target != activeTarget || source != activeSource || autoSrc != activeAuto || slotsOn != activeSlots))
+    if (specLoaded && (target != eng.activeTarget || source != eng.activeSource || autoSrc != eng.activeAuto || slotsOn != eng.activeSlots))
     {
-        for (auto& st : stream)
+        for (int c = 0; c < 2; ++c)
         {
-            st.setCondition (target, source);
-            st.setSlotMode (slotsOn);
-            st.setAutoSource (autoSrc);
+            stream[c].setCondition (target, source);
+            stream[c].setSlotMode (slotsOn);
+            stream[c].setAutoSource (autoSrc);
         }
-        activeTarget = target;
-        activeSource = source;
-        activeAuto = autoSrc;
-        activeSlots = slotsOn;
+        eng.activeTarget = target;
+        eng.activeSource = source;
+        eng.activeAuto = autoSrc;
+        eng.activeSlots = slotsOn;
         autoActiveUi.store (autoSrc);
     }
 
@@ -409,14 +458,19 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
     if (wetMix.getTargetValue() < 0.5f && ! wetMix.isSmoothing())
     {
         bypassed = true;
+        if (fadePhase != 0)
+        {
+            switchEngineTo (selectedGuitar());
+            fadePhase = 0;
+        }
         return;
     }
     if (bypassed)
     {
         bypassed = false;
         if (specLoaded)
-            for (auto& st : stream)
-                st.reset();
+            for (int c = 0; c < 2; ++c)
+                stream[c].reset();
     }
 
     // A guitar is usually mono: when both channels are identical, run the engine once.
@@ -475,8 +529,8 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
     {
         if (engineIdle)
         {
-            for (auto& st : stream)
-                st.reset(); // history is stale after being idle
+            for (int c = 0; c < 2; ++c)
+                stream[c].reset(); // history is stale after being idle
             engineIdle = false;
         }
         for (int c = 0; c < active; ++c)
@@ -501,6 +555,22 @@ void FourRealAudioProcessor::processSlice (float* const* data, int numChannels, 
         engineIdle = true;
 
     knobFir.process (wk, active, n);
+
+    // guitar switch: ramp the wet sound down (phase 1), switch at the end of the slice, ramp it up again (phase 2)
+    if (fadePhase != 0)
+    {
+        const float from = fadePhase == 1 ? 1.0f : 0.0f, to = 1.0f - from;
+        for (int c = 0; c < active; ++c)
+            for (int i = 0; i < n; ++i)
+                wk[c][i] *= from + (to - from) * (static_cast<float> (i + 1) / static_cast<float> (n));
+        if (fadePhase == 1)
+        {
+            switchEngineTo (selectedGuitar());
+            fadePhase = 2;
+        }
+        else
+            fadePhase = 0;
+    }
 
     // wet / dry (Voicing switch), then write back
     for (int i = 0; i < n; ++i)
@@ -544,8 +614,9 @@ void FourRealAudioProcessor::clearSlot (int slot)
 // Audio thread: start / stop of a calibration, and finishing it by itself after 8 s of loud playing.
 void FourRealAudioProcessor::handleLearning()
 {
+    fourreal::SpecStream* const stream = activeStreams();
     const int req = learnRequest.exchange (0);
-    auto finish = [this]
+    auto finish = [this, stream]
     {
         float feat[64] = {};
         const int k = learningSlot;
@@ -606,13 +677,14 @@ void FourRealAudioProcessor::applySlots()
             publishPending = false;
         }
     }
+    fourreal::SpecStream* const stream = activeStreams();
     for (int k = 0; k < kNumSlots; ++k)
     {
         const int cell = static_cast<int> (apvts.getRawParameterValue ("slotCell" + juce::String (k))->load() + 0.5f);
         if (cell != appliedCell[k])
         {
-            for (auto& st : stream)
-                st.setSlot (k, slotsAudio.feat[k], cell, slotsAudio.valid[k]);
+            for (int c = 0; c < 2; ++c)
+                stream[c].setSlot (k, slotsAudio.feat[k], cell, slotsAudio.valid[k]);
             appliedCell[k] = cell;
         }
     }
@@ -625,7 +697,7 @@ void FourRealAudioProcessor::getStateInformation (juce::MemoryBlock& destData)
         while (auto* old = xml->getChildByName ("SLOTS"))
             xml->removeChildElement (old, true);
         auto* e = xml->createNewChildElement ("SLOTS");
-        const int n = specLoaded ? juce::jmin (64, spec.autoSource.nMask) : 0;
+        const int n = juce::jmin (64, library().reference().autoSource.nMask);
         const juce::SpinLock::ScopedLockType lock (slotsLock);
         for (int k = 0; k < kNumSlots; ++k)
         {
@@ -646,7 +718,7 @@ void FourRealAudioProcessor::setStateInformation (const void* data, int sizeInBy
         if (xml->hasTagName (apvts.state.getType()))
         {
             SlotData loaded;
-            const int n = specLoaded ? juce::jmin (64, spec.autoSource.nMask) : 0;
+            const int n = juce::jmin (64, library().reference().autoSource.nMask);
             if (auto* e = xml->getChildByName ("SLOTS"))
             {
                 for (int k = 0; k < kNumSlots; ++k)

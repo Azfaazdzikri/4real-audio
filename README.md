@@ -8,21 +8,30 @@ Outputnya tetap **clean** (tanpa amp/cab/pedal), jadi ditaruh sebelum AmpliTube 
 Input gitar -> UADx 1176 -> [ 4real-audio ] -> AmpliTube 5 -> ...
 ```
 
-## Status: v0.4 (test build, tanpa neural network; posisi selector sesuai data rekaman)
+## Status: v0.9 (satu plugin, library gitar)
 
-Sekarang ada **8 plugin terpisah**, satu per gitar target, dari satu kode dasar:
+Sekarang hanya **satu plugin / standalone** (`4real-audio`) yang berisi seluruh library gitar. Gitar yang ditiru dipilih
+di daftar kartu sebelah kiri (seperti ganti library piano di Pianoverse); satu klik langsung pindah gitar tanpa bunyi klik.
 
-| Plugin | Gitar target | Kontrol |
+| Kode | Gitar target | Kontrol di foto |
 |---|---|---|
-| 4real-audio LP | Les Paul | selector 3, 2 volume, 2 tone |
-| 4real-audio 335 | ES-335 | selector 3, 2 volume, 2 tone |
-| 4real-audio SG | SG | selector 3, 2 volume, 2 tone |
-| 4real-audio PRS | PRS SE Custom 24 | selector 3, 1 volume, 1 tone |
-| 4real-audio RIC | Rickenbacker 330 | selector 3, 2 volume, 2 tone |
-| 4real-audio STR | Stratocaster SSS | selector 5, 1 volume, 2 tone |
-| 4real-audio TCR | Telecaster | selector 3, 1 volume, 1 tone |
-| 4real-audio FLC | Gretsch Falcon | selector 3, volume neck, volume bridge, master, 1 tone |
+| LP | Les Paul | selector 3, 2 volume, 2 tone |
+| 335 | ES-335 | selector (hanya Neck yang direkam), 2 volume, 2 tone |
+| SG | SG | selector (Bridge/Neck), 2 volume, 2 tone |
+| PRS | PRS SE Custom 24 | selector 3, 1 volume, 1 tone |
+| RIC | Rickenbacker 330 | selector (hanya Bridge yang direkam), 2 volume, 2 tone |
+| STR | Stratocaster SSS | selector 5 posisi (4 direkam), 1 volume, 2 tone |
+| TCR | Telecaster | selector (Bridge/Neck), 1 volume, 1 tone |
+| FLC | Gretsch-style Falcon | selector (Middle direkam), 2 volume, master, 1 tone |
 
+- Tiap gitar tampil sebagai **foto** dengan kontrol yang hidup: klik pickup untuk memilihnya, geser tuas selector, putar knob
+  volume/tone (drag naik-turun, scroll mouse, double-click = 10, Shift = halus). Knob hanya menunjukkan angka 0.0 - 10.0.
+  Posisi selector yang tidak direkam tidak bisa dipilih. Setiap gitar mengingat posisi knob-nya sendiri.
+- **Lisensi per gitar**: `Source/License.h` sudah punya id lisensi per gitar (`4real.guitar.<KODE>`), tapi untuk sekarang
+  semuanya terbuka (`kUnlockEverything = true`).
+- Foto disiapkan oleh `tools/prepare_guitar_photos.py <folder foto asli>` (nama brand dihapus tanpa blur, ujung tuas selector
+  dihapus karena digambar ulang oleh plugin; huruf "R" Rickenbacker sengaja dibiarkan). Posisi pickup/knob/tuas di foto ada
+  di `Source/ui/GuitarScene.cpp` (satuan piksel foto 1376x768); `tools/scene_preview.cpp` merender hasilnya ke PNG tanpa GUI.
 - Suara gitar difilter oleh **selisih dua model fisik elektronika gitar**: gitar sumber (pilih di dropdown salah satu
   gitar yang direkam, lalu posisi selector; default Les Paul / Bridge, pendekatan untuk gitar HSS dengan humbucker bridge) dan gitar target (plugin ini). Kontrol target
   bekerja seperti rangkaian aslinya (tone 0 menutup suara tinggi, volume rendah meredam resonansi pickup).
@@ -38,23 +47,22 @@ Sekarang ada **8 plugin terpisah**, satu per gitar target, dari satu kode dasar:
 
 ### Opsi A - GitHub Actions (tanpa install apa pun)
 1. Push branch ini ke GitHub, buka tab **Actions**, pilih run terbaru "Build Windows (VST3 + Standalone)".
-2. Unduh artifact `4real-audio-windows-x64` di bagian bawah halaman run (muncul setelah semua 8 build selesai).
-3. Di dalamnya ada folder `4real-audio LP.vst3`, `4real-audio STR.vst3`, dst, dan file `.exe` Standalone masing-masing.
+2. Unduh artifact `4real-audio-windows-x64` di bagian bawah halaman run (muncul setelah build selesai).
+3. Di dalamnya ada folder `4real-audio.vst3` dan `4real-audio.exe` (Standalone).
 
 ### Opsi B - build di PC sendiri
 Butuh: Visual Studio 2022 (workload "Desktop development with C++"), CMake, Git.
 
 ```
 git pull
-build-windows.bat            (semua model)
-build-windows.bat LP STR     (hanya model tertentu)
+build-windows.bat
 ```
 
-Hasilnya ada di `build\FourReal_LP_artefacts\Release\VST3\4real-audio LP.vst3` (dan seterusnya).
+Hasilnya ada di `build\FourReal_artefacts\Release\VST3\4real-audio.vst3`.
 
 ## Mencoba di Studio One
 
-1. Salin **seluruh folder** `4real-audio XX.vst3` yang ingin dicoba ke `C:\Program Files\Common Files\VST3`
+1. Salin **seluruh folder** `4real-audio.vst3` ke `C:\Program Files\Common Files\VST3`
    (perlu hak admin), atau ke folder VST3 lain yang sudah ditambahkan di Studio One.
 2. Buka Studio One, lakukan rescan plugin (di pengaturan lokasi VST plugin; nama menu bisa sedikit
    berbeda antar versi).
@@ -70,8 +78,8 @@ pengujian. VST2 hanya mungkin kalau kamu sudah punya lisensi SDK VST2 lama.
 
 ## Rencana
 
-Produk akhirnya satu plugin per gitar target (8 model di tabel di atas, Jazzmaster belum ada datanya),
-masing-masing dengan UI bergaya gitar dan knob yang berfungsi seperti gitar aslinya.
+Produk akhirnya satu plugin dengan library gitar (8 model di tabel di atas, Jazzmaster belum ada datanya),
+masing-masing dengan UI foto gitar dan knob yang berfungsi seperti gitar aslinya.
 
 1. **Prototipe model fisik (sudah ada, lihat `training/`):** model elektronika gitar (pickup, volume,
    tone, selector) dengan tes dan skrip pemrosesan WAV. Belum neural network.

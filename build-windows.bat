@@ -1,25 +1,15 @@
 @echo off
-REM Build 4real-audio (VST3 + Standalone) on Windows. One plugin per guitar model.
+REM Build 4real-audio (VST3 + Standalone) on Windows. ONE plugin that holds the whole guitar library.
 REM Requirements: Visual Studio 2022 (or Build Tools) with "Desktop development with C++", CMake, Git.
-REM Usage:  build-windows.bat            builds all models (LP 335 SG PRS RIC STR TCR FLC)
-REM         build-windows.bat LP STR     builds only the listed models
-
-set MODELS=%*
-if "%MODELS%"=="" set MODELS=LP 335 SG PRS RIC STR TCR FLC
-
-set CMAKE_MODELS=%MODELS: =;%
-cmake -S . -B build -A x64 -DFOURREAL_MODELS="%CMAKE_MODELS%" || goto :error
-
-for %%M in (%MODELS%) do (
-    cmake --build build --config Release --target FourReal_%%M_VST3 FourReal_%%M_Standalone --parallel || goto :error
-)
+cmake -S . -B build -A x64 || goto :error
+cmake --build build --config Release --target FourReal_VST3 FourReal_Standalone --parallel || goto :error
 
 echo.
-echo Done. Output per model, for example for LP:
-echo   build\FourReal_LP_artefacts\Release\VST3\4real-audio LP.vst3
-echo   build\FourReal_LP_artefacts\Release\Standalone\4real-audio LP.exe
+echo Done:
+echo   build\FourReal_artefacts\Release\VST3\4real-audio.vst3
+echo   build\FourReal_artefacts\Release\Standalone\4real-audio.exe
 echo.
-echo To use in Studio One, copy the whole "4real-audio XX.vst3" folders to:
+echo To use in Studio One, copy the "4real-audio.vst3" folder to:
 echo   C:\Program Files\Common Files\VST3
 pause
 exit /b 0
