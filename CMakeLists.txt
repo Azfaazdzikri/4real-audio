@@ -46,7 +46,11 @@ juce_add_binary_data(FourReal_Data
     SOURCES     ${FOURREAL_SPM_COPIES})
 
 # The guitar photos (Source/ui/photos/<CODE>.jpg, prepared by tools/prepare_guitar_photos.py), embedded as PhotoData.
-file(GLOB FOURREAL_PHOTOS CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/Source/ui/photos/*.jpg")
+# and the pictures rendered from them by tools/render_art.cpp (Source/ui/art: one picture per selector position, a knob filmstrip).
+file(GLOB FOURREAL_PHOTOS CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/ui/photos/*.jpg"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/ui/art/*.jpg"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/ui/art/*.png")
 juce_add_binary_data(FourReal_Photos
     HEADER_NAME PhotoData.h
     NAMESPACE   PhotoData

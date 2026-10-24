@@ -52,7 +52,14 @@ private:
     const fourreal::GuitarModel* model = nullptr;
     juce::Colour accent;
 
-    juce::Image scaled;        // the photo at the screen size (high quality, cached)
+    // pre-rendered pictures (Source/ui/art): the guitar for every selector position, scaled to the screen size once
+    const juce::Image& pictureFor (int position);
+    std::vector<juce::Image> scaledPictures;
+    int previousPosition = -1;  // the picture that fades out after a selector change
+    float fade = 1.0f;          // 1 = only the current picture
+    juce::Image knobStrip;      // filmstrip of the knob of this guitar
+    int knobFrame = 0;          // size of one frame in the strip, pixels
+    float knobHalf = 0.0f;      // half size of a frame in photo pixels
     float scale = 1.0f;
     juce::Point<float> offset;
 

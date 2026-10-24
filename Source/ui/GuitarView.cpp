@@ -21,25 +21,40 @@ void GuitarView::setGuitar (int index)
     accent = juce::Colour (0xff000000u | model->accentRgb);
     hover = drag = {};
     shownSlot = slotOfPosition (selectorPosition());
-    scaled = {};
+    previousPosition = -1;
+    lastPosition = -1;
+    fade = 1.0f;
+    knobStrip = embeddedImage (juce::String (model->code) + "_knob.png");
+    knobFrame = knobStrip.isValid() ? knobStrip.getWidth() : 0;
+    knobHalf = scene->knobs.front().r + 12.0f;
     resized();
     repaint();
 }
 
 void GuitarView::resized()
 {
-    const auto& photo = guitarPhoto (model->code);
     const auto b = getLocalBounds().toFloat();
     scale = juce::jmin (b.getWidth() / kPhotoW, b.getHeight() / kPhotoH);
     offset = { (b.getWidth() - kPhotoW * scale) * 0.5f, (b.getHeight() - kPhotoH * scale) * 0.5f };
-    scaled = {};
-    if (photo.isValid())
+    scaledPictures.assign (model->positions.size(), {});   // rebuilt on demand at the new size
+}
+
+const juce::Image& GuitarView::pictureFor (int position)
+{
+    position = juce::jlimit (0, static_cast<int> (model->positions.size()) - 1, position);
+    auto& img = scaledPictures[static_cast<size_t> (position)];
+    if (! img.isValid())
     {
-        const float dpi = juce::Component::getApproximateScaleFactorForComponent (this);
-        const int w = juce::roundToInt (kPhotoW * scale * dpi), h = juce::roundToInt (kPhotoH * scale * dpi);
-        if (w > 0 && h > 0)
-            scaled = photo.rescaled (w, h, juce::Graphics::highResamplingQuality);
+        const auto& src = embeddedImage (juce::String (model->code) + "_pos" + juce::String (position) + ".jpg");
+        if (src.isValid())
+        {
+            const float dpi = juce::Component::getApproximateScaleFactorForComponent (this);
+            const int w = juce::roundToInt (kPhotoW * scale * dpi), h = juce::roundToInt (kPhotoH * scale * dpi);
+            if (w > 0 && h > 0)
+                img = src.rescaled (w, h, juce::Graphics::highResamplingQuality);
+        }
     }
+    return img;
 }
 
 // --- parameters ---------------------------------------------------------------------------------------------------------
@@ -122,18 +137,17 @@ void GuitarView::setPosition (int position)
 void GuitarView::timerCallback()
 {
     const int pos = selectorPosition();
-    const float target = slotOfPosition (pos);
     bool dirty = needsRepaint;
-    if (std::abs (shownSlot - target) > 0.002f)
-    {
-        shownSlot += (target - shownSlot) * 0.35f;
-        if (std::abs (shownSlot - target) < 0.01f)
-            shownSlot = target;
-        dirty = true;
-    }
     if (pos != lastPosition)
     {
+        previousPosition = lastPosition;   // short cross-fade between the two pictures
+        fade = previousPosition < 0 ? 1.0f : 0.0f;
         lastPosition = pos;
+        dirty = true;
+    }
+    if (fade < 1.0f)
+    {
+        fade = juce::jmin (1.0f, fade + 0.25f);
         dirty = true;
     }
     for (size_t k = 0; k < scene->knobs.size() && k < 16; ++k)
@@ -155,22 +169,43 @@ void GuitarView::timerCallback()
 void GuitarView::paint (juce::Graphics& g)
 {
     g.fillAll (juce::Colour (0xff101216));
-    if (scaled.isValid())
+    const int pos = selectorPosition();
+    const juce::Rectangle<float> area (offset.x, offset.y, kPhotoW * scale, kPhotoH * scale);
+    g.setImageResamplingQuality (juce::Graphics::highResamplingQuality);
+    if (fade < 1.0f && previousPosition >= 0)
     {
-        g.setImageResamplingQuality (juce::Graphics::highResamplingQuality);
-        g.drawImage (scaled, juce::Rectangle<float> (offset.x, offset.y, kPhotoW * scale, kPhotoH * scale));
+        g.drawImage (pictureFor (previousPosition), area);
+        g.setOpacity (fade);
     }
+    g.drawImage (pictureFor (pos), area);
+    g.setOpacity (1.0f);
+
+    // knobs: the frame of the filmstrip for the value (they really turn)
+    if (knobStrip.isValid())
+    {
+        const int frames = knobStrip.getHeight() / juce::jmax (1, knobFrame);
+        for (size_t i = 0; i < scene->knobs.size(); ++i)
+        {
+            const auto& k = scene->knobs[i];
+            const float f = knobHalf * (k.r / scene->knobs.front().r);   // knobs of one guitar can differ a little in size
+            const int frame = juce::jlimit (0, frames - 1, juce::roundToInt (knobValue (static_cast<int> (i)) * static_cast<float> (frames - 1)));
+            const juce::Rectangle<float> dst (offset.x + (k.x - f) * scale, offset.y + (k.y - f) * scale, 2 * f * scale, 2 * f * scale);
+            g.drawImage (knobStrip, dst.getX(), dst.getY(), dst.getWidth(), dst.getHeight(),
+                         0, frame * knobFrame, knobFrame, knobFrame);
+        }
+    }
+
     juce::Graphics::ScopedSaveState state (g);
     g.addTransform (juce::AffineTransform::scale (scale).translated (offset));
-
-    const unsigned mask = model->positions.empty() ? 0u : model->positions[static_cast<size_t> (juce::jlimit (0, static_cast<int> (model->positions.size()) - 1, selectorPosition()))].pickupMask;
     for (const auto& pk : scene->pickups)
-        paintPickup (g, pk, (mask >> pk.pickup) & 1u, hover.hit == Hit::Pickup && scene->pickups[static_cast<size_t> (hover.index)].pickup == pk.pickup, accent);
+        if (hover.hit == Hit::Pickup && scene->pickups[static_cast<size_t> (hover.index)].pickup == pk.pickup)
+            paintPickup (g, pk, false, true, accent);
 
     std::vector<bool> available;
     for (int s = 0; s < scene->selector.numSlots(); ++s)
         available.push_back (positionOfSlot (s) >= 0);
-    paintSelector (g, scene->selector, shownSlot, available, hover.hit == Hit::Selector || drag.hit == Hit::Selector, accent);
+    if (hover.hit == Hit::Selector || drag.hit == Hit::Selector)
+        paintSelectorHints (g, scene->selector, available, accent);
 
     for (size_t k = 0; k < scene->knobs.size(); ++k)
         paintKnob (g, scene->knobs[k], knobValue (static_cast<int> (k)),

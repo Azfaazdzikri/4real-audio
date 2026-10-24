@@ -78,11 +78,16 @@ const GuitarScene& sceneFor (const std::string& code);
 
 // --- painting (photo coordinates) ---------------------------------------------------------------------------------------
 void paintPickup (juce::Graphics&, const PickupSpot&, bool selected, bool hovered, juce::Colour accent);
+// Just the knob itself (shadow, skirt, face, pointer) without hover ring and number: this is what the pre-rendered knob
+// filmstrips are made of (tools/render_art.cpp).
+void paintKnobBody (juce::Graphics&, const KnobSpot&, float value01);
 // value01: knob position 0 (fully down) .. 1 (fully up).
 void paintKnob (juce::Graphics&, const KnobSpot&, float value01, bool hovered, bool dragging, juce::Colour accent);
 // slot: fractional so that the lever can glide between positions. available[i]: slot i was recorded and can be chosen.
 void paintSelector (juce::Graphics&, const SelectorSpot&, float slot, const std::vector<bool>& available, bool hovered,
                     juce::Colour accent);
+// Selector hints that stay live over the pre-rendered picture: outline and slot dots when the mouse is on the lever.
+void paintSelectorHints (juce::Graphics&, const SelectorSpot&, const std::vector<bool>& available, juce::Colour accent);
 // A small label with an arrow-less pill, above (or below) the anchor; `pixel` is the size of one screen pixel in photo units.
 void paintTag (juce::Graphics&, juce::Point<float> anchor, const juce::String& title, const juce::String& value, float pixel,
                juce::Colour accent);

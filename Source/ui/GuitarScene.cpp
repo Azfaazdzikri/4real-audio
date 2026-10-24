@@ -338,7 +338,7 @@ const KnobPalette& paletteFor (KnobStyle s)
 }
 } // namespace
 
-void paintKnob (juce::Graphics& g, const KnobSpot& k, float v, bool hovered, bool dragging, Colour accent)
+void paintKnobBody (juce::Graphics& g, const KnobSpot& k, float v)
 {
     v = juce::jlimit (0.0f, 1.0f, v);
     const float a = (-0.75f + 1.5f * v) * kPi;
@@ -394,10 +394,16 @@ void paintKnob (juce::Graphics& g, const KnobSpot& k, float v, bool hovered, boo
         strokeLine (g, c + d * (F * 0.18f), c + d * (F * pal.pointerLen + R * 0.25f), 1.8f);
     }
 
+}
+
+void paintKnob (juce::Graphics& g, const KnobSpot& k, float v, bool hovered, bool dragging, Colour accent)
+{
+    v = juce::jlimit (0.0f, 1.0f, v);
+    const float R = k.r + 2.5f;
     if (hovered || dragging)
     {
         g.setColour (accent.withAlpha (dragging ? 0.9f : 0.6f));
-        g.drawEllipse (c.x - R - 2.0f, c.y - R - 2.0f, 2 * R + 4.0f, 2 * R + 4.0f, 1.6f);
+        g.drawEllipse (k.x - R - 2.0f, k.y - R - 2.0f, 2 * R + 4.0f, 2 * R + 4.0f, 1.6f);
     }
 
     // only the number 0.0 .. 10.0, under the knob
@@ -554,4 +560,30 @@ void paintTag (juce::Graphics& g, Point<float> anchor, const juce::String& title
     g.drawText (value, juce::Rectangle<float> (r.getX() + padX + w1 + gap, r.getY(), w2 + 2, h), juce::Justification::centredLeft,
                 false);
 }
+void paintSelectorHints (juce::Graphics& g, const SelectorSpot& s, const std::vector<bool>& available, Colour accent)
+{
+    const int n = s.numSlots();
+    auto dot = [&] (Point<float> p, int i, float r)
+    {
+        const bool ok = i < static_cast<int> (available.size()) && available[static_cast<size_t> (i)];
+        g.setColour (ok ? juce::Colours::white.withAlpha (0.9f) : juce::Colours::black.withAlpha (0.55f));
+        g.fillEllipse (p.x - r, p.y - r, 2 * r, 2 * r);
+    };
+    g.setColour (accent.withAlpha (0.9f));
+    if (s.style == LeverStyle::Toggle)
+    {
+        g.drawEllipse (s.pivot.x - s.length - 8, s.pivot.y - s.length - 8, 2 * (s.length + 8), 2 * (s.length + 8), 2.0f);
+        const float mid = static_cast<float> (n - 1) * 0.5f;
+        const float side = s.direction.y <= 0 ? 1.0f : -1.0f;
+        for (int i = 0; i < n; ++i)
+            dot (s.pivot + rotated (s.direction, side * s.tiltDeg * (static_cast<float> (i) - mid) / juce::jmax (0.5f, mid)) * (s.length + 14.0f), i, 3.2f);
+    }
+    else
+    {
+        g.drawRoundedRectangle (s.hitBox(), 6.0f, 1.8f);
+        for (int i = 0; i < n; ++i)
+            dot (s.slotPoint (static_cast<float> (i)) + Point<float> (s.direction.y * -1.0f, s.direction.x) * 11.0f, i, 3.0f);
+    }
+}
+
 } // namespace fourreal::ui

@@ -6,15 +6,14 @@
 
 namespace fourreal::ui
 {
-const juce::Image& guitarPhoto (const juce::String& code)
+const juce::Image& embeddedImage (const juce::String& file)
 {
     static std::map<juce::String, juce::Image> cache;
-    auto it = cache.find (code);
+    auto it = cache.find (file);
     if (it != cache.end())
         return it->second;
 
     juce::Image img;
-    const juce::String file = code + ".jpg";
     for (int i = 0; i < PhotoData::namedResourceListSize; ++i)
         if (file == PhotoData::originalFilenames[i])
         {
@@ -23,6 +22,6 @@ const juce::Image& guitarPhoto (const juce::String& code)
                 img = juce::ImageFileFormat::loadFrom (data, static_cast<size_t> (size));
             break;
         }
-    return cache.emplace (code, img).first->second;
+    return cache.emplace (file, img).first->second;
 }
 }
