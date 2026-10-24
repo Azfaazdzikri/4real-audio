@@ -28,12 +28,8 @@ FILES = {  # code -> file name of the original
 #   ("poly", [(x, y), ...])           refilled with texture from around it
 #   ("cap",  cx, cy, r_cap, r_mask)   a round metal knob cap: the logo inside r_mask is replaced by a plain face
 EDITS = {
+    # Brand marks (Gretsch / Bigsby on the White Falcon) are left as in the original photo for now; knobs are drawn by the plugin.
     "FLC": [
-        ("poly", [(77, 355), (94, 352), (111, 379), (126, 408), (127, 419), (108, 421), (97, 415), (87, 393), (77, 364)]),  # GRETSCH plate on the Bigsby
-        ("poly", [(52, 356), (68, 356), (70, 372), (68, 410), (52, 412)]),                 # "Bigsby" script
-        ("poly", [(370, 520), (386, 523), (398, 529), (415, 529), (428, 523), (428, 532), (372, 539)]),  # GRETSCH on the pickguard
-        ("cap", 262, 494, 15, 13), ("cap", 205, 551, 15, 13),                              # emblems on the gold knob caps
-        ("cap", 265, 621, 15, 13), ("cap", 598, 529, 14, 12),
         ("poly", [(633, 240), (669, 240), (669, 277), (633, 277)]),                        # toggle cap (lever tip)
     ],
     # --- lever tips of the pickup selectors (the plugin draws them) ---

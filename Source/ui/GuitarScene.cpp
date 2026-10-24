@@ -60,6 +60,8 @@ std::map<std::string, GuitarScene> buildScenes()
         v.slotMasks = { kB, kBoth, kN };
         v.tip = Colour (0xffeaa63a);
         v.tipShade = Colour (0xff8a4c10);
+        for (auto& k : s.knobs)
+            k.style = KnobStyle::GoldBell;
         m[s.code] = s;
     }
     // --- ES-335 -----------------------------------------------------------------------------------------------------
@@ -84,6 +86,8 @@ std::map<std::string, GuitarScene> buildScenes()
         v.nutRadius = 11.5f;
         v.nutLight = chromeLight;
         v.nutDark = chromeDark;
+        for (auto& k : s.knobs)
+            k.style = KnobStyle::BlackKnurled;
         m[s.code] = s;
     }
     // --- SG ---------------------------------------------------------------------------------------------------------
@@ -108,6 +112,8 @@ std::map<std::string, GuitarScene> buildScenes()
         v.nutRadius = 11.0f;
         v.nutLight = chromeLight;
         v.nutDark = chromeDark;
+        for (auto& k : s.knobs)
+            k.style = KnobStyle::BlackChromeTop;
         m[s.code] = s;
     }
     // --- PRS SE Custom 24 -------------------------------------------------------------------------------------------
@@ -128,6 +134,8 @@ std::map<std::string, GuitarScene> buildScenes()
         v.tip = cream;
         v.tipShade = creamShade;
         v.drawSlot = true;
+        for (auto& k : s.knobs)
+            k.style = KnobStyle::ChromeBarrel;
         m[s.code] = s;
     }
     // --- Rickenbacker 330 -------------------------------------------------------------------------------------------
@@ -152,6 +160,8 @@ std::map<std::string, GuitarScene> buildScenes()
         v.nutRadius = 12.5f;
         v.nutLight = chromeLight;
         v.nutDark = chromeDark;
+        for (auto& k : s.knobs)
+            k.style = KnobStyle::BlackKnurled;
         m[s.code] = s;
     }
     // --- Stratocaster -----------------------------------------------------------------------------------------------
@@ -173,6 +183,8 @@ std::map<std::string, GuitarScene> buildScenes()
         v.tip = cream;
         v.tipShade = creamShade;
         v.drawSlot = false; // the slot of the photo is intact
+        for (auto& k : s.knobs)
+            k.style = KnobStyle::CreamStrat;
         m[s.code] = s;
     }
     // --- Telecaster -------------------------------------------------------------------------------------------------
@@ -193,6 +205,8 @@ std::map<std::string, GuitarScene> buildScenes()
         v.tip = black;
         v.tipShade = blackShade;
         v.drawSlot = true;
+        for (auto& k : s.knobs)
+            k.style = KnobStyle::ChromeBarrel;
         m[s.code] = s;
     }
     // --- Gretsch White Falcon ---------------------------------------------------------------------------------------
@@ -217,6 +231,8 @@ std::map<std::string, GuitarScene> buildScenes()
         v.nutRadius = 10.5f;
         v.nutLight = Colour (0xfff0d77a);
         v.nutDark = Colour (0xff8a6516);
+        for (auto& k : s.knobs)
+            k.style = KnobStyle::GoldCylinder;
         m[s.code] = s;
     }
     return m;
@@ -297,26 +313,96 @@ void paintPickup (juce::Graphics& g, const PickupSpot& p, bool selected, bool ho
     }
 }
 
+namespace
+{
+struct KnobPalette
+{
+    Colour skirtLight, skirtDark, faceLight, faceDark, tick, pointer;
+    float faceFrac;   // radius of the top face relative to the knob radius
+    int ticks;        // knurling around the skirt (0 = none)
+    float pointerLen; // length of the pointer relative to the knob radius (on the face)
+    bool pointerOnSkirt;
+};
+
+const KnobPalette& paletteFor (KnobStyle s)
+{
+    static const KnobPalette p[] = {
+        { Colour (0xffe9cf7a), Colour (0xff6e4d12), Colour (0xfff3dc90), Colour (0xff9a7222), Colour (0xff5a3d0c), Colour (0xff3a2506), 0.66f, 24, 0.0f, true },   // GoldBell
+        { Colour (0xff3b3b3f), Colour (0xff0b0b0d), Colour (0xff2c2c30), Colour (0xff060607), Colour (0xff8d8d94), Colour (0xffe8e8e8), 0.70f, 28, 0.62f, false }, // BlackKnurled
+        { Colour (0xff3b3b3f), Colour (0xff0b0b0d), Colour (0xfff2f3f5), Colour (0xff80848c), Colour (0xff8d8d94), Colour (0xff202022), 0.60f, 26, 0.0f, true },  // BlackChromeTop
+        { Colour (0xffeceef2), Colour (0xff6c7078), Colour (0xfff7f8fa), Colour (0xff9aa0a8), Colour (0xff5c6068), Colour (0xff25262a), 0.82f, 0, 0.66f, false },  // ChromeBarrel
+        { Colour (0xfff6f1e2), Colour (0xff9d9684), Colour (0xfffaf6ea), Colour (0xffbdb6a2), Colour (0xff8a8472), Colour (0xff2a2924), 0.74f, 14, 0.0f, true },    // CreamStrat
+        { Colour (0xffe6c669), Colour (0xff6a4a10), Colour (0xfff2dc8c), Colour (0xffa8801f), Colour (0xff5a3d0c), Colour (0xff3a2506), 0.80f, 0, 0.60f, false },   // GoldCylinder
+    };
+    return p[static_cast<int> (s)];
+}
+} // namespace
+
 void paintKnob (juce::Graphics& g, const KnobSpot& k, float v, bool hovered, bool dragging, Colour accent)
 {
     v = juce::jlimit (0.0f, 1.0f, v);
-    const float a0 = -0.75f * kPi, a1 = 0.75f * kPi, a = a0 + v * (a1 - a0);
+    const float a = (-0.75f + 1.5f * v) * kPi;
+    const auto& pal = paletteFor (k.style);
+    const float R = k.r + 2.5f;
+    const Point<float> c (k.x, k.y), d (std::sin (a), -std::cos (a));
+
+    // soft contact shadow (the light comes from the upper left)
+    for (int i = 4; i >= 1; --i)
+    {
+        g.setColour (juce::Colours::black.withAlpha (0.10f));
+        const float e = R + i * 1.1f;
+        g.fillEllipse (c.x - e + 2.0f, c.y - e + 3.4f, 2 * e, 2 * e);
+    }
+    // skirt
+    g.setGradientFill (juce::ColourGradient (pal.skirtLight, c.x - R * 0.7f, c.y - R * 0.8f, pal.skirtDark, c.x + R * 0.8f, c.y + R * 0.9f, false));
+    g.fillEllipse (c.x - R, c.y - R, 2 * R, 2 * R);
+    // knurling: little ridges that turn with the knob
+    if (pal.ticks > 0)
+        for (int i = 0; i < pal.ticks; ++i)
+        {
+            const float t = a + 2.0f * kPi * static_cast<float> (i) / static_cast<float> (pal.ticks);
+            const Point<float> u (std::sin (t), -std::cos (t));
+            const float lit = 0.5f + 0.5f * (-(u.x + u.y) * 0.7071f);   // ridges facing the light are brighter
+            g.setColour (pal.tick.withAlpha (0.25f + 0.45f * lit));
+            strokeLine (g, c + u * (R * 0.86f), c + u * (R * 0.99f), 1.1f);
+        }
+    g.setColour (juce::Colours::black.withAlpha (0.55f));
+    g.drawEllipse (c.x - R, c.y - R, 2 * R, 2 * R, 1.0f);
+
+    // top face
+    const float F = R * pal.faceFrac;
+    g.setGradientFill (juce::ColourGradient (pal.faceLight, c.x - F * 0.6f, c.y - F * 0.7f, pal.faceDark, c.x + F * 0.8f, c.y + F * 0.9f, false));
+    g.fillEllipse (c.x - F, c.y - F, 2 * F, 2 * F);
+    g.setColour (juce::Colours::black.withAlpha (0.35f));
+    g.drawEllipse (c.x - F, c.y - F, 2 * F, 2 * F, 0.9f);
+    g.setColour (juce::Colours::white.withAlpha (0.30f));
+    g.drawEllipse (c.x - F + 0.8f, c.y - F + 0.8f, 2 * F - 1.6f, 2 * F - 1.6f, 0.8f);
+    g.setColour (juce::Colours::white.withAlpha (0.35f));
+    g.fillEllipse (c.x - F * 0.55f, c.y - F * 0.75f, F * 0.5f, F * 0.28f); // highlight
+
+    // pointer
+    if (pal.pointerOnSkirt)
+    {
+        g.setColour (pal.pointer.withAlpha (0.85f));
+        strokeLine (g, c + d * (F + 0.5f), c + d * (R - 0.8f), 2.2f);
+    }
+    else
+    {
+        g.setColour (juce::Colours::black.withAlpha (0.35f));
+        strokeLine (g, c + d * (F * 0.18f) + Point<float> (0.5f, 0.8f), c + d * (F * pal.pointerLen + R * 0.25f) + Point<float> (0.5f, 0.8f), 2.2f);
+        g.setColour (pal.pointer);
+        strokeLine (g, c + d * (F * 0.18f), c + d * (F * pal.pointerLen + R * 0.25f), 1.8f);
+    }
 
     if (hovered || dragging)
     {
-        g.setColour (juce::Colours::white.withAlpha (dragging ? 0.20f : 0.13f));
-        g.fillEllipse (k.x - k.r, k.y - k.r, 2 * k.r, 2 * k.r);
+        g.setColour (accent.withAlpha (dragging ? 0.9f : 0.6f));
+        g.drawEllipse (c.x - R - 2.0f, c.y - R - 2.0f, 2 * R + 4.0f, 2 * R + 4.0f, 1.6f);
     }
-
-    const Point<float> c (k.x, k.y), d (std::sin (a), -std::cos (a));
-    g.setColour (juce::Colours::black.withAlpha (0.65f));
-    strokeLine (g, c + d * (k.r * 0.22f), c + d * (k.r * 0.95f), 4.0f);
-    g.setColour (juce::Colours::white);
-    strokeLine (g, c + d * (k.r * 0.22f), c + d * (k.r * 0.95f), 2.0f);
 
     // only the number 0.0 .. 10.0, under the knob
     const juce::String num (v * 10.0f, 1);
-    const Point<float> tc (k.x, k.y + k.r + 11.0f);
+    const Point<float> tc (k.x, k.y + R + 11.0f);
     const juce::Rectangle<float> pill (tc.x - 17.0f, tc.y - 8.5f, 34.0f, 17.0f);
     g.setColour (juce::Colours::black.withAlpha (dragging || hovered ? 0.82f : 0.62f));
     g.fillRoundedRectangle (pill, 8.5f);

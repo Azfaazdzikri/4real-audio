@@ -27,12 +27,15 @@ struct PickupSpot
 };
 
 enum class KnobKind { Volume, Tone };
+// The look of the knobs of a guitar. The plugin draws the knobs itself (they really turn); the photo only shows through around them.
+enum class KnobStyle { GoldBell, BlackKnurled, BlackChromeTop, ChromeBarrel, CreamStrat, GoldCylinder };
 
 struct KnobSpot
 {
     float x, y, r;   // centre and radius of the knob cap in the photo
     KnobKind kind;
     int index;       // index in GuitarModel::volumes or GuitarModel::tones
+    KnobStyle style = KnobStyle::BlackKnurled; // set by sceneFor()
 };
 
 enum class LeverStyle

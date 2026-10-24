@@ -25,12 +25,11 @@ di daftar kartu sebelah kiri (seperti ganti library piano di Pianoverse); satu k
 | FLC | Gretsch-style Falcon | selector (Middle direkam), 2 volume, master, 1 tone |
 
 - Tiap gitar tampil sebagai **foto** dengan kontrol yang hidup: klik pickup untuk memilihnya, geser tuas selector, putar knob
-  volume/tone (drag naik-turun, scroll mouse, double-click = 10, Shift = halus). Knob hanya menunjukkan angka 0.0 - 10.0.
+  volume/tone (knob digambar sendiri oleh plugin dan benar-benar berputar) (drag naik-turun, scroll mouse, double-click = 10, Shift = halus). Knob hanya menunjukkan angka 0.0 - 10.0.
   Posisi selector yang tidak direkam tidak bisa dipilih. Setiap gitar mengingat posisi knob-nya sendiri.
 - **Lisensi per gitar**: `Source/License.h` sudah punya id lisensi per gitar (`4real.guitar.<KODE>`), tapi untuk sekarang
   semuanya terbuka (`kUnlockEverything = true`).
-- Foto disiapkan oleh `tools/prepare_guitar_photos.py <folder foto asli>` (nama brand dihapus tanpa blur, ujung tuas selector
-  dihapus karena digambar ulang oleh plugin; huruf "R" Rickenbacker sengaja dibiarkan). Posisi pickup/knob/tuas di foto ada
+- Foto disiapkan oleh `tools/prepare_guitar_photos.py <folder foto asli>` (ujung tuas selector dihapus karena digambar ulang oleh plugin; logo brand sementara dibiarkan seperti foto asli). Posisi pickup/knob/tuas di foto ada
   di `Source/ui/GuitarScene.cpp` (satuan piksel foto 1376x768); `tools/scene_preview.cpp` merender hasilnya ke PNG tanpa GUI.
 - Suara gitar difilter oleh **selisih dua model fisik elektronika gitar**: gitar sumber (pilih di dropdown salah satu
   gitar yang direkam, lalu posisi selector; default Les Paul / Bridge, pendekatan untuk gitar HSS dengan humbucker bridge) dan gitar target (plugin ini). Kontrol target
