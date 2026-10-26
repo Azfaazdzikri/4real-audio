@@ -24,8 +24,9 @@ void GuitarView::setGuitar (int index)
     previousPosition = -1;
     lastPosition = -1;
     fade = 1.0f;
-    knobStrip = embeddedImage (juce::String (model->code) + "_knob.png");
-    knobFrame = knobStrip.isValid() ? knobStrip.getWidth() : 0;
+    knobStrip[0] = embeddedImage (juce::String (model->code) + "_knob_vol.png");
+    knobStrip[1] = embeddedImage (juce::String (model->code) + "_knob_tone.png");
+    knobFrame = knobStrip[0].isValid() ? knobStrip[0].getWidth() : 0;
     knobHalf = scene->knobs.front().r + 12.0f;
     resized();
     repaint();
@@ -181,18 +182,17 @@ void GuitarView::paint (juce::Graphics& g)
     g.setOpacity (1.0f);
 
     // knobs: the frame of the filmstrip for the value (they really turn)
-    if (knobStrip.isValid())
+    for (size_t i = 0; i < scene->knobs.size(); ++i)
     {
-        const int frames = knobStrip.getHeight() / juce::jmax (1, knobFrame);
-        for (size_t i = 0; i < scene->knobs.size(); ++i)
-        {
-            const auto& k = scene->knobs[i];
-            const float f = knobHalf * (k.r / scene->knobs.front().r);   // knobs of one guitar can differ a little in size
-            const int frame = juce::jlimit (0, frames - 1, juce::roundToInt (knobValue (static_cast<int> (i)) * static_cast<float> (frames - 1)));
-            const juce::Rectangle<float> dst (offset.x + (k.x - f) * scale, offset.y + (k.y - f) * scale, 2 * f * scale, 2 * f * scale);
-            g.drawImage (knobStrip, dst.getX(), dst.getY(), dst.getWidth(), dst.getHeight(),
-                         0, frame * knobFrame, knobFrame, knobFrame);
-        }
+        const auto& k = scene->knobs[i];
+        const auto& strip = knobStrip[k.kind == KnobKind::Volume ? 0 : 1];
+        if (! strip.isValid() || knobFrame <= 0)
+            continue;
+        const int frames = strip.getHeight() / knobFrame;
+        const float f = knobHalf * (k.r / scene->knobs.front().r);   // knobs of one guitar can differ a little in size
+        const int frame = juce::jlimit (0, frames - 1, juce::roundToInt (knobValue (static_cast<int> (i)) * static_cast<float> (frames - 1)));
+        const juce::Rectangle<float> dst (offset.x + (k.x - f) * scale, offset.y + (k.y - f) * scale, 2 * f * scale, 2 * f * scale);
+        g.drawImage (strip, dst.getX(), dst.getY(), dst.getWidth(), dst.getHeight(), 0, frame * knobFrame, knobFrame, knobFrame);
     }
 
     juce::Graphics::ScopedSaveState state (g);

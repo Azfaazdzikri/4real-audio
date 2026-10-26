@@ -132,11 +132,11 @@ std::map<std::string, GuitarScene> buildScenes()
                     { 392, 495, 16, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 445, 482 };
-        v.slotEnd = { 462, 512 };
-        v.direction = unit (-0.9f, 0.4f);
-        v.length = 22;
-        v.width = 11;
+        v.pivot = { 435, 497 };      // the plate (about 50 px wide) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 465, 497 };
+        v.direction = unit (0.0f, 1.0f);
+        v.length = 6;
+        v.width = 24;
         v.slotMasks = { kB, kBoth, kN };
         v.tip = cream;
         v.tipShade = creamShade;
@@ -172,16 +172,16 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "STR";
         s.pickups = { { { 288, 333, 42, 95 }, 0 }, { { 366, 333, 34, 95 }, 1 }, { { 446, 328, 34, 98 }, 2 } };
-        s.knobs = { { 286, 485, 18, KnobKind::Volume, 0 },
-                    { 326, 521, 18, KnobKind::Tone, 0 },    // TONE NECK
-                    { 365, 549, 18, KnobKind::Tone, 1 } };  // TONE MIDDLE
+        s.knobs = { { 280, 486, 18, KnobKind::Volume, 0 },
+                    { 325, 497, 18, KnobKind::Tone, 0 },    // TONE NECK
+                    { 300, 525, 18, KnobKind::Tone, 1 } };  // TONE MIDDLE
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 410, 520 };
-        v.slotEnd = { 440, 488 };
-        v.direction = unit (-0.5f, 0.85f);
-        v.length = 20;
-        v.width = 9;
+        v.pivot = { 403, 490 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 467, 490 };
+        v.direction = unit (0.0f, 1.0f);
+        v.length = 6;
+        v.width = 20;
         v.slotMasks = { kSB, kSBM, kSM, kSMN, kSN };
         v.tip = cream;
         v.tipShade = creamShade;
@@ -193,15 +193,15 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "TCR";
         s.pickups = { { { 297, 333, 40, 98 }, 0 }, { { 454, 340, 24, 86 }, 1 } };
-        s.knobs = { { 385, 515, 16, KnobKind::Volume, 0 },
-                    { 437, 515, 16, KnobKind::Tone, 0 } };
+        s.knobs = { { 372, 515, 16, KnobKind::Volume, 0 },
+                    { 425, 515, 16, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 470, 485 };
-        v.slotEnd = { 470, 535 };
-        v.direction = unit (-1.0f, 0.0f);
-        v.length = 24;
-        v.width = 13;
+        v.pivot = { 462, 508 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 520, 508 };
+        v.direction = unit (0.0f, 1.0f);
+        v.length = 6;
+        v.width = 22;
         v.slotMasks = { kB, kBoth, kN };
         v.tip = black;
         v.tipShade = blackShade;
@@ -403,7 +403,9 @@ void paintKnob (juce::Graphics& g, const KnobSpot& k, float v, bool hovered, boo
         g.drawEllipse (k.x - R - 2.0f, k.y - R - 2.0f, 2 * R + 4.0f, 2 * R + 4.0f, 1.6f);
     }
 
-    // only the number 0.0 .. 10.0, under the knob
+    // only the number 0.0 .. 10.0, under the knob, while the mouse is on it
+    if (! hovered && ! dragging)
+        return;
     const juce::String num (v * 10.0f, 1);
     const Point<float> tc (k.x, k.y + R + 11.0f);
     const juce::Rectangle<float> pill (tc.x - 17.0f, tc.y - 8.5f, 34.0f, 17.0f);

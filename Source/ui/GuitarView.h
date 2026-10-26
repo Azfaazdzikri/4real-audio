@@ -57,7 +57,7 @@ private:
     std::vector<juce::Image> scaledPictures;
     int previousPosition = -1;  // the picture that fades out after a selector change
     float fade = 1.0f;          // 1 = only the current picture
-    juce::Image knobStrip;      // filmstrip of the knob of this guitar
+    juce::Image knobStrip[2];   // filmstrips of the volume and the tone knob of this guitar
     int knobFrame = 0;          // size of one frame in the strip, pixels
     float knobHalf = 0.0f;      // half size of a frame in photo pixels
     float scale = 1.0f;

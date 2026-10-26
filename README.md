@@ -33,9 +33,10 @@ di daftar kartu sebelah kiri (seperti ganti library piano di Pianoverse); satu k
   pickup menyala digambar oleh plugin. Posisi pickup/knob/tuas di foto ada di `Source/ui/GuitarScene.cpp` (satuan piksel foto);
   `tools/scene_preview.cpp` merender hasilnya ke PNG tanpa GUI. Kalau foto diganti, sesuaikan angka di file itu, lalu jalankan
   `tools/render_art.cpp` lagi.
-- `tools/render_art.cpp` merender gambar yang dipakai plugin ke `Source/ui/art`: satu gambar per posisi selector
-  (`<KODE>_pos<n>.jpg`, tuas dan pickup menyala sudah ada di gambar; ukuran 1376x768) dan filmstrip knob 48 frame
-  (`<KODE>_knob.png`) yang diputar plugin sesuai nilai knob. File-file ini boleh kamu timpa dengan gambar buatan sendiri
+- Knob dan tuas selector berasal dari gambar buatan Gemini di latar hijau (`tools/prepare_parts.py` memotongnya ke
+  `Source/ui/parts`). `tools/render_art.cpp` menyusun gambar yang dipakai plugin ke `Source/ui/art`: satu gambar gitar per posisi
+  selector (`<KODE>_pos<n>.jpg`, tuas sudah ada di gambar) dan filmstrip knob 48 frame (`<KODE>_knob_vol.png` dan
+  `<KODE>_knob_tone.png`) yang diputar plugin sesuai nilai knob. File-file ini boleh kamu timpa dengan gambar buatan sendiri
   (nama dan ukuran sama), tidak perlu mengubah kode.
 - Suara gitar difilter oleh **selisih dua model fisik elektronika gitar**: gitar sumber (pilih di dropdown salah satu
   gitar yang direkam, lalu posisi selector; default Les Paul / Bridge, pendekatan untuk gitar HSS dengan humbucker bridge) dan gitar target (plugin ini). Kontrol target
