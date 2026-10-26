@@ -25,6 +25,7 @@ static juce::Image render (const juce::Image& photo, const GuitarScene& scene, f
     int i = 0;
     for (const auto& k : scene.knobs)
     {
+        paintKnobBody (g, k, knob + 0.12f * static_cast<float> (i % 3));
         paintKnob (g, k, knob + 0.12f * static_cast<float> (i % 3), i == hoverKnob, false, accent);
         ++i;
     }

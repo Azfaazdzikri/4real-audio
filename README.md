@@ -29,8 +29,11 @@ di daftar kartu sebelah kiri (seperti ganti library piano di Pianoverse); satu k
   Posisi selector yang tidak direkam tidak bisa dipilih. Setiap gitar mengingat posisi knob-nya sendiri.
 - **Lisensi per gitar**: `Source/License.h` sudah punya id lisensi per gitar (`4real.guitar.<KODE>`), tapi untuk sekarang
   semuanya terbuka (`kUnlockEverything = true`).
-- Foto disiapkan oleh `tools/prepare_guitar_photos.py <folder foto asli>` (ujung tuas selector dihapus karena digambar ulang oleh plugin; logo brand sementara dibiarkan seperti foto asli). Posisi pickup/knob/tuas di foto ada
-  di `Source/ui/GuitarScene.cpp` (satuan piksel foto 1376x768); `tools/render_art.cpp` merender gambar yang dipakai plugin ke `Source/ui/art`: satu gambar per posisi selector
+- Foto gitar (`Source/ui/photos/<KODE>.jpg`, 1376x768) adalah foto bersih tanpa knob dan tanpa tuas selector; knob, tuas, dan
+  pickup menyala digambar oleh plugin. Posisi pickup/knob/tuas di foto ada di `Source/ui/GuitarScene.cpp` (satuan piksel foto);
+  `tools/scene_preview.cpp` merender hasilnya ke PNG tanpa GUI. Kalau foto diganti, sesuaikan angka di file itu, lalu jalankan
+  `tools/render_art.cpp` lagi.
+- `tools/render_art.cpp` merender gambar yang dipakai plugin ke `Source/ui/art`: satu gambar per posisi selector
   (`<KODE>_pos<n>.jpg`, tuas dan pickup menyala sudah ada di gambar; ukuran 1376x768) dan filmstrip knob 48 frame
   (`<KODE>_knob.png`) yang diputar plugin sesuai nilai knob. File-file ini boleh kamu timpa dengan gambar buatan sendiri
   (nama dan ukuran sama), tidak perlu mengubah kode.
