@@ -67,7 +67,7 @@ int main (int argc, char** argv)
             juce::Graphics g (img);
             g.drawImageAt (photo, 0, 0);
             for (const auto& pk : scene.pickups)
-                paintPickup (g, pk, (model.positions[p].pickupMask >> pk.pickup) & 1u, false, juce::Colour (0xff35d6c8));
+                (void) pk; // no highlight on the pickups: the selector lever shows the position
             paintSelector (g, scene.selector, static_cast<float> (slot), {}, false, juce::Colours::white);
             save (img, outDir.getChildFile (juce::String (code) + "_pos" + juce::String (static_cast<int> (p)) + ".jpg"), true);
         }

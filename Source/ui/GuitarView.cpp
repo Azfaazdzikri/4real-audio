@@ -18,7 +18,7 @@ void GuitarView::setGuitar (int index)
     const auto& entry = FourRealAudioProcessor::library().at (index);
     model = entry.guitar;
     scene = &sceneFor (entry.code());
-    accent = juce::Colour (0xff000000u | model->accentRgb);
+    accent = juce::Colours::white;
     hover = drag = {};
     shownSlot = slotOfPosition (selectorPosition());
     previousPosition = -1;
@@ -197,9 +197,6 @@ void GuitarView::paint (juce::Graphics& g)
 
     juce::Graphics::ScopedSaveState state (g);
     g.addTransform (juce::AffineTransform::scale (scale).translated (offset));
-    for (const auto& pk : scene->pickups)
-        if (hover.hit == Hit::Pickup && scene->pickups[static_cast<size_t> (hover.index)].pickup == pk.pickup)
-            paintPickup (g, pk, false, true, accent);
 
     std::vector<bool> available;
     for (int s = 0; s < scene->selector.numSlots(); ++s)
