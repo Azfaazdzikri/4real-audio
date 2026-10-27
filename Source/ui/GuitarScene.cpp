@@ -56,13 +56,13 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "LP";
         s.pickups = { { { 288, 321, 64, 127 }, 0 }, { { 426, 321, 65, 127 }, 1 } };
-        s.knobs = { { 212, 492, 17, KnobKind::Volume, 1 },   // VOL BRIDGE
-                    { 264, 498, 17, KnobKind::Volume, 0 },   // VOL NECK
-                    { 228, 540, 17, KnobKind::Tone, 1 },     // TONE BRIDGE
-                    { 280, 546, 17, KnobKind::Tone, 0 } };   // TONE NECK
+        s.knobs = { { 127, 488, 17, KnobKind::Volume, 1 },
+                    { 201, 486, 17, KnobKind::Volume, 0 },
+                    { 159, 538, 17, KnobKind::Tone, 1 },
+                    { 238, 536, 17, KnobKind::Tone, 0 } };   // TONE NECK
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
-        v.pivot = { 505, 268 };
+        v.pivot = { 517, 283 };
         v.direction = { 0, -1 };
         v.tiltDeg = 38;
         v.length = 18;
@@ -80,10 +80,10 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "335";
         s.pickups = { { { 349, 329, 60, 115 }, 0 }, { { 480, 329, 61, 115 }, 1 } };
-        s.knobs = { { 286, 458, 14, KnobKind::Volume, 1 },
-                    { 326, 462, 14, KnobKind::Volume, 0 },
-                    { 290, 489, 14, KnobKind::Tone, 1 },
-                    { 330, 493, 14, KnobKind::Tone, 0 } };
+        s.knobs = { { 231, 500, 14, KnobKind::Volume, 1 },
+                    { 168, 518, 14, KnobKind::Volume, 0 },
+                    { 205, 548, 14, KnobKind::Tone, 1 },
+                    { 140, 556, 14, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
         v.pivot = { 548, 256 };
@@ -104,57 +104,57 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "SG";
         s.pickups = { { { 314, 338, 47, 88 }, 0 }, { { 430, 338, 47, 88 }, 1 } };
-        s.knobs = { { 278, 466, 14, KnobKind::Volume, 1 },
-                    { 324, 466, 14, KnobKind::Volume, 0 },
-                    { 278, 498, 14, KnobKind::Tone, 1 },
-                    { 324, 498, 14, KnobKind::Tone, 0 } };
+        s.knobs = { { 114, 480, 14, KnobKind::Volume, 1 },
+                    { 170, 496, 14, KnobKind::Volume, 0 },
+                    { 118, 530, 14, KnobKind::Tone, 1 },
+                    { 174, 546, 14, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
-        v.pivot = { 410, 480 };
+        v.pivot = { 234, 512 };
         v.direction = { 0, 1 };
         v.tiltDeg = 36;
         v.length = 17;
         v.width = 12;
         v.slotMasks = { kB, kBoth, kN };
-        v.tip = cream;
-        v.tipShade = creamShade;
+        v.tip = Colour (0xffe0bd55);
+        v.tipShade = Colour (0xff7d5c14);
         v.nutRadius = 11.0f;
         v.nutLight = chromeLight;
         v.nutDark = chromeDark;
-        finish (s, KnobStyle::GoldBell);
+        finish (s, KnobStyle::ChromeBarrel);
     }
     // --- PRS SE Custom 24 -------------------------------------------------------------------------------------------
     {
         GuitarScene s;
         s.code = "PRS";
         s.pickups = { { { 309, 321, 64, 124 }, 0 }, { { 432, 321, 64, 124 }, 1 } };
-        s.knobs = { { 318, 514, 16, KnobKind::Volume, 0 },
-                    { 268, 545, 16, KnobKind::Tone, 0 } };
+        s.knobs = { { 310, 486, 16, KnobKind::Volume, 0 },
+                    { 173, 448, 16, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 365, 520 };      // the plate (about 50 px wide) is centred on the middle of pivot..slotEnd
-        v.slotEnd = { 405, 520 };
-        v.direction = unit (0.0f, 1.0f);
+        v.pivot = { 183, 516 };      // the plate (about 50 px wide) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 236, 498 };
+        v.direction = unit (0.32f, 0.947f);
         v.length = 16;
         v.width = 12;
         v.slotMasks = { kB, kBoth, kN };
         v.tip = cream;
         v.tipShade = creamShade;
         v.drawSlot = true;
-        finish (s, KnobStyle::ChromeBarrel);
+        finish (s, KnobStyle::BlackKnurled);
     }
     // --- Rickenbacker 330 -------------------------------------------------------------------------------------------
     {
         GuitarScene s;
         s.code = "RIC";
         s.pickups = { { { 301, 322, 54, 132 }, 0 }, { { 431, 322, 54, 132 }, 1 } };
-        s.knobs = { { 255, 505, 18, KnobKind::Volume, 1 },
-                    { 315, 505, 18, KnobKind::Volume, 0 },
-                    { 255, 560, 18, KnobKind::Tone, 1 },
-                    { 315, 560, 18, KnobKind::Tone, 0 } };
+        s.knobs = { { 212, 517, 18, KnobKind::Volume, 1 },
+                    { 267, 517, 18, KnobKind::Volume, 0 },
+                    { 210, 571, 18, KnobKind::Tone, 1 },
+                    { 267, 573, 18, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
-        v.pivot = { 375, 505 };
+        v.pivot = { 306, 546 };
         v.direction = { 0, 1 };
         v.tiltDeg = 38;
         v.length = 13;
@@ -172,19 +172,19 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "STR";
         s.pickups = { { { 285, 336, 40, 97 }, 0 }, { { 367, 336, 30, 97 }, 1 }, { { 448, 336, 28, 97 }, 2 } };
-        s.knobs = { { 312, 497, 17, KnobKind::Volume, 0 },
-                    { 366, 508, 17, KnobKind::Tone, 0 },    // TONE NECK
-                    { 420, 514, 17, KnobKind::Tone, 1 } };  // TONE MIDDLE
+        s.knobs = { { 291, 455, 17, KnobKind::Volume, 0 },
+                    { 263, 509, 17, KnobKind::Tone, 0 },
+                    { 225, 549, 17, KnobKind::Tone, 1 } };  // TONE MIDDLE
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 440, 538 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
-        v.slotEnd = { 500, 538 };
-        v.direction = unit (0.0f, 1.0f);
+        v.pivot = { 299, 533 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 341, 497 };
+        v.direction = unit (0.65f, 0.76f);
         v.length = 16;
         v.width = 12;
         v.slotMasks = { kSB, kSBM, kSM, kSMN, kSN };
-        v.tip = black;
-        v.tipShade = blackShade;
+        v.tip = cream;
+        v.tipShade = creamShade;
         v.drawSlot = true;
         finish (s, KnobStyle::CreamStrat);
     }
@@ -193,33 +193,33 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "TCR";
         s.pickups = { { { 268, 336, 54, 95 }, 0 }, { { 442, 340, 22, 90 }, 1 } };
-        s.knobs = { { 305, 512, 16, KnobKind::Volume, 0 },
-                    { 250, 512, 16, KnobKind::Tone, 0 } };
+        s.knobs = { { 239, 512, 16, KnobKind::Volume, 0 },
+                    { 152, 512, 16, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 385, 305 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
-        v.slotEnd = { 445, 305 };
+        v.pivot = { 270, 512 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 315, 512 };
         v.direction = unit (0.0f, -1.0f);
         v.length = 16;
         v.width = 12;
         v.slotMasks = { kB, kBoth, kN };
-        v.tip = cream;
-        v.tipShade = creamShade;
+        v.tip = black;
+        v.tipShade = blackShade;
         v.drawSlot = true;
-        finish (s, KnobStyle::BlackKnurled);
+        finish (s, KnobStyle::ChromeBarrel);
     }
     // --- White Falcon -----------------------------------------------------------------------------------------------
     {
         GuitarScene s;
         s.code = "FLC";
         s.pickups = { { { 360, 322, 62, 115 }, 0 }, { { 485, 322, 63, 115 }, 1 } };
-        s.knobs = { { 575, 305, 17, KnobKind::Volume, 1 },  // VOL BRIDGE
-                    { 625, 305, 17, KnobKind::Volume, 0 },  // VOL NECK
-                    { 575, 255, 17, KnobKind::Volume, 2 },  // MASTER
-                    { 625, 255, 17, KnobKind::Tone, 0 } };
+        s.knobs = { { 185, 525, 15, KnobKind::Volume, 1 },
+                    { 130, 495, 15, KnobKind::Volume, 0 },
+                    { 150, 562, 15, KnobKind::Volume, 2 },
+                    { 560, 535, 15, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
-        v.pivot = { 612, 520 };
+        v.pivot = { 600, 300 };
         v.direction = { 0, -1 };
         v.tiltDeg = 38;
         v.length = 15;
