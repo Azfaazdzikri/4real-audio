@@ -55,14 +55,14 @@ std::map<std::string, GuitarScene> buildScenes()
     {
         GuitarScene s;
         s.code = "LP";
-        s.pickups = { { { 340, 321, 57, 120 }, 0 }, { { 479, 321, 58, 120 }, 1 } };
-        s.knobs = { { 190, 480, 17, KnobKind::Volume, 1 },   // VOL BRIDGE
-                    { 265, 492, 17, KnobKind::Volume, 0 },   // VOL NECK
-                    { 222, 545, 17, KnobKind::Tone, 1 },     // TONE BRIDGE
-                    { 298, 552, 17, KnobKind::Tone, 0 } };   // TONE NECK
+        s.pickups = { { { 288, 321, 64, 127 }, 0 }, { { 426, 321, 65, 127 }, 1 } };
+        s.knobs = { { 212, 492, 17, KnobKind::Volume, 1 },   // VOL BRIDGE
+                    { 264, 498, 17, KnobKind::Volume, 0 },   // VOL NECK
+                    { 228, 540, 17, KnobKind::Tone, 1 },     // TONE BRIDGE
+                    { 280, 546, 17, KnobKind::Tone, 0 } };   // TONE NECK
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
-        v.pivot = { 590, 290 };
+        v.pivot = { 505, 268 };
         v.direction = { 0, -1 };
         v.tiltDeg = 38;
         v.length = 18;
@@ -79,14 +79,14 @@ std::map<std::string, GuitarScene> buildScenes()
     {
         GuitarScene s;
         s.code = "335";
-        s.pickups = { { { 366, 324, 58, 118 }, 0 }, { { 501, 324, 58, 106 }, 1 } };
-        s.knobs = { { 280, 468, 16, KnobKind::Volume, 1 },
-                    { 326, 462, 16, KnobKind::Volume, 0 },
-                    { 284, 508, 16, KnobKind::Tone, 1 },
-                    { 330, 504, 16, KnobKind::Tone, 0 } };
+        s.pickups = { { { 349, 329, 60, 115 }, 0 }, { { 480, 329, 61, 115 }, 1 } };
+        s.knobs = { { 400, 476, 16, KnobKind::Volume, 1 },
+                    { 452, 476, 16, KnobKind::Volume, 0 },
+                    { 400, 516, 16, KnobKind::Tone, 1 },
+                    { 452, 516, 16, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
-        v.pivot = { 575, 285 };
+        v.pivot = { 548, 256 };
         v.direction = { 0, -1 };
         v.tiltDeg = 38;
         v.length = 15;
@@ -97,20 +97,20 @@ std::map<std::string, GuitarScene> buildScenes()
         v.nutRadius = 11.5f;
         v.nutLight = chromeLight;
         v.nutDark = chromeDark;
-        finish (s, KnobStyle::BlackKnurled);
+        finish (s, KnobStyle::BlackChromeTop);
     }
     // --- SG ---------------------------------------------------------------------------------------------------------
     {
         GuitarScene s;
         s.code = "SG";
-        s.pickups = { { { 337, 336, 47, 93 }, 0 }, { { 453, 336, 47, 93 }, 1 } };
-        s.knobs = { { 165, 478, 18, KnobKind::Volume, 1 },
-                    { 230, 478, 18, KnobKind::Volume, 0 },
-                    { 165, 540, 18, KnobKind::Tone, 1 },
-                    { 230, 540, 18, KnobKind::Tone, 0 } };
+        s.pickups = { { { 314, 338, 47, 88 }, 0 }, { { 430, 338, 47, 88 }, 1 } };
+        s.knobs = { { 295, 463, 15, KnobKind::Volume, 1 },
+                    { 350, 463, 15, KnobKind::Volume, 0 },
+                    { 295, 497, 15, KnobKind::Tone, 1 },
+                    { 350, 497, 15, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
-        v.pivot = { 330, 515 };
+        v.pivot = { 440, 485 };
         v.direction = { 0, 1 };
         v.tiltDeg = 36;
         v.length = 17;
@@ -121,22 +121,22 @@ std::map<std::string, GuitarScene> buildScenes()
         v.nutRadius = 11.0f;
         v.nutLight = chromeLight;
         v.nutDark = chromeDark;
-        finish (s, KnobStyle::BlackChromeTop);
+        finish (s, KnobStyle::GoldBell);
     }
     // --- PRS SE Custom 24 -------------------------------------------------------------------------------------------
     {
         GuitarScene s;
         s.code = "PRS";
-        s.pickups = { { { 309, 315, 63, 127 }, 0 }, { { 429, 315, 63, 125 }, 1 } };
-        s.knobs = { { 340, 485, 16, KnobKind::Volume, 0 },
-                    { 392, 495, 16, KnobKind::Tone, 0 } };
+        s.pickups = { { { 309, 321, 64, 124 }, 0 }, { { 432, 321, 64, 124 }, 1 } };
+        s.knobs = { { 335, 512, 16, KnobKind::Volume, 0 },
+                    { 385, 525, 16, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 435, 497 };      // the plate (about 50 px wide) is centred on the middle of pivot..slotEnd
-        v.slotEnd = { 465, 497 };
+        v.pivot = { 425, 492 };      // the plate (about 50 px wide) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 465, 492 };
         v.direction = unit (0.0f, 1.0f);
-        v.length = 6;
-        v.width = 24;
+        v.length = 16;
+        v.width = 12;
         v.slotMasks = { kB, kBoth, kN };
         v.tip = cream;
         v.tipShade = creamShade;
@@ -147,14 +147,14 @@ std::map<std::string, GuitarScene> buildScenes()
     {
         GuitarScene s;
         s.code = "RIC";
-        s.pickups = { { { 308, 316, 50, 125 }, 0 }, { { 444, 316, 52, 125 }, 1 } };
-        s.knobs = { { 195, 492, 19, KnobKind::Volume, 1 },
-                    { 255, 492, 19, KnobKind::Volume, 0 },
-                    { 195, 560, 19, KnobKind::Tone, 1 },
-                    { 255, 560, 19, KnobKind::Tone, 0 } };
+        s.pickups = { { { 301, 322, 54, 132 }, 0 }, { { 431, 322, 54, 132 }, 1 } };
+        s.knobs = { { 255, 505, 18, KnobKind::Volume, 1 },
+                    { 315, 505, 18, KnobKind::Volume, 0 },
+                    { 255, 560, 18, KnobKind::Tone, 1 },
+                    { 315, 560, 18, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
-        v.pivot = { 385, 510 };
+        v.pivot = { 375, 505 };
         v.direction = { 0, 1 };
         v.tiltDeg = 38;
         v.length = 13;
@@ -171,20 +171,20 @@ std::map<std::string, GuitarScene> buildScenes()
     {
         GuitarScene s;
         s.code = "STR";
-        s.pickups = { { { 288, 333, 42, 95 }, 0 }, { { 366, 333, 34, 95 }, 1 }, { { 446, 328, 34, 98 }, 2 } };
-        s.knobs = { { 280, 486, 18, KnobKind::Volume, 0 },
-                    { 325, 497, 18, KnobKind::Tone, 0 },    // TONE NECK
-                    { 300, 525, 18, KnobKind::Tone, 1 } };  // TONE MIDDLE
+        s.pickups = { { { 285, 336, 40, 97 }, 0 }, { { 367, 336, 30, 97 }, 1 }, { { 448, 336, 28, 97 }, 2 } };
+        s.knobs = { { 345, 495, 17, KnobKind::Volume, 0 },
+                    { 400, 506, 17, KnobKind::Tone, 0 },    // TONE NECK
+                    { 455, 512, 17, KnobKind::Tone, 1 } };  // TONE MIDDLE
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 403, 490 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
-        v.slotEnd = { 467, 490 };
+        v.pivot = { 468, 533 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 528, 533 };
         v.direction = unit (0.0f, 1.0f);
-        v.length = 6;
-        v.width = 20;
+        v.length = 16;
+        v.width = 12;
         v.slotMasks = { kSB, kSBM, kSM, kSMN, kSN };
-        v.tip = cream;
-        v.tipShade = creamShade;
+        v.tip = black;
+        v.tipShade = blackShade;
         v.drawSlot = true;
         finish (s, KnobStyle::CreamStrat);
     }
@@ -192,34 +192,34 @@ std::map<std::string, GuitarScene> buildScenes()
     {
         GuitarScene s;
         s.code = "TCR";
-        s.pickups = { { { 297, 333, 40, 98 }, 0 }, { { 454, 340, 24, 86 }, 1 } };
-        s.knobs = { { 372, 515, 16, KnobKind::Volume, 0 },
-                    { 425, 515, 16, KnobKind::Tone, 0 } };
+        s.pickups = { { { 268, 336, 54, 95 }, 0 }, { { 442, 340, 22, 90 }, 1 } };
+        s.knobs = { { 305, 512, 16, KnobKind::Volume, 0 },
+                    { 250, 512, 16, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 462, 508 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
-        v.slotEnd = { 520, 508 };
+        v.pivot = { 375, 512 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 435, 512 };
         v.direction = unit (0.0f, 1.0f);
-        v.length = 6;
-        v.width = 22;
+        v.length = 16;
+        v.width = 12;
         v.slotMasks = { kB, kBoth, kN };
-        v.tip = black;
-        v.tipShade = blackShade;
+        v.tip = cream;
+        v.tipShade = creamShade;
         v.drawSlot = true;
-        finish (s, KnobStyle::ChromeBarrel);
+        finish (s, KnobStyle::BlackKnurled);
     }
     // --- White Falcon -----------------------------------------------------------------------------------------------
     {
         GuitarScene s;
         s.code = "FLC";
-        s.pickups = { { { 349, 334, 57, 101 }, 0 }, { { 467, 334, 59, 101 }, 1 } };
-        s.knobs = { { 200, 488, 15, KnobKind::Volume, 1 },  // VOL BRIDGE
-                    { 575, 515, 15, KnobKind::Volume, 0 },  // VOL NECK
-                    { 195, 548, 15, KnobKind::Volume, 2 },  // MASTER
-                    { 262, 478, 15, KnobKind::Tone, 0 } };
+        s.pickups = { { { 360, 322, 62, 115 }, 0 }, { { 485, 322, 63, 115 }, 1 } };
+        s.knobs = { { 575, 305, 17, KnobKind::Volume, 1 },  // VOL BRIDGE
+                    { 625, 305, 17, KnobKind::Volume, 0 },  // VOL NECK
+                    { 575, 255, 17, KnobKind::Volume, 2 },  // MASTER
+                    { 625, 255, 17, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
-        v.pivot = { 565, 265 };
+        v.pivot = { 612, 520 };
         v.direction = { 0, -1 };
         v.tiltDeg = 38;
         v.length = 15;
@@ -337,60 +337,43 @@ const KnobPalette& paletteFor (KnobStyle s)
 
 void paintKnobBody (juce::Graphics& g, const KnobSpot& k, float v)
 {
+    // Flat vector knob seen from above (same drawing style as the guitar pictures: solid colours, thin dark outline).
     v = juce::jlimit (0.0f, 1.0f, v);
     const float a = (-0.75f + 1.5f * v) * kPi;
     const auto& pal = paletteFor (k.style);
-    const float R = k.r + 2.5f;
+    const float R = k.r + 2.0f;
     const Point<float> c (k.x, k.y), d (std::sin (a), -std::cos (a));
+    const Colour outline (0xff17181b);
 
-    // soft contact shadow (the light comes from the upper left)
-    for (int i = 4; i >= 1; --i)
-    {
-        g.setColour (juce::Colours::black.withAlpha (0.10f));
-        const float e = R + i * 1.1f;
-        g.fillEllipse (c.x - e + 2.0f, c.y - e + 3.4f, 2 * e, 2 * e);
-    }
     // skirt
-    g.setGradientFill (juce::ColourGradient (pal.skirtLight, c.x - R * 0.7f, c.y - R * 0.8f, pal.skirtDark, c.x + R * 0.8f, c.y + R * 0.9f, false));
+    g.setColour (pal.skirtLight.interpolatedWith (pal.skirtDark, 0.35f));
     g.fillEllipse (c.x - R, c.y - R, 2 * R, 2 * R);
-    // knurling: little ridges that turn with the knob
+    // knurling: ridges that turn with the knob
     if (pal.ticks > 0)
+    {
+        g.setColour (pal.skirtDark.withAlpha (0.75f));
         for (int i = 0; i < pal.ticks; ++i)
         {
             const float t = a + 2.0f * kPi * static_cast<float> (i) / static_cast<float> (pal.ticks);
             const Point<float> u (std::sin (t), -std::cos (t));
-            const float lit = 0.5f + 0.5f * (-(u.x + u.y) * 0.7071f);   // ridges facing the light are brighter
-            g.setColour (pal.tick.withAlpha (0.25f + 0.45f * lit));
-            strokeLine (g, c + u * (R * 0.86f), c + u * (R * 0.99f), 1.1f);
+            strokeLine (g, c + u * (R * 0.84f), c + u * (R * 0.97f), 1.0f);
         }
-    g.setColour (juce::Colours::black.withAlpha (0.55f));
-    g.drawEllipse (c.x - R, c.y - R, 2 * R, 2 * R, 1.0f);
+    }
+    g.setColour (outline);
+    g.drawEllipse (c.x - R, c.y - R, 2 * R, 2 * R, 1.3f);
 
     // top face
     const float F = R * pal.faceFrac;
-    g.setGradientFill (juce::ColourGradient (pal.faceLight, c.x - F * 0.6f, c.y - F * 0.7f, pal.faceDark, c.x + F * 0.8f, c.y + F * 0.9f, false));
+    g.setColour (pal.faceLight.interpolatedWith (pal.faceDark, 0.25f));
     g.fillEllipse (c.x - F, c.y - F, 2 * F, 2 * F);
-    g.setColour (juce::Colours::black.withAlpha (0.35f));
-    g.drawEllipse (c.x - F, c.y - F, 2 * F, 2 * F, 0.9f);
-    g.setColour (juce::Colours::white.withAlpha (0.30f));
-    g.drawEllipse (c.x - F + 0.8f, c.y - F + 0.8f, 2 * F - 1.6f, 2 * F - 1.6f, 0.8f);
-    g.setColour (juce::Colours::white.withAlpha (0.35f));
-    g.fillEllipse (c.x - F * 0.55f, c.y - F * 0.75f, F * 0.5f, F * 0.28f); // highlight
+    g.setColour (outline.withAlpha (0.8f));
+    g.drawEllipse (c.x - F, c.y - F, 2 * F, 2 * F, 1.0f);
 
-    // pointer
-    if (pal.pointerOnSkirt)
-    {
-        g.setColour (pal.pointer.withAlpha (0.85f));
-        strokeLine (g, c + d * (F + 0.5f), c + d * (R - 0.8f), 2.2f);
-    }
-    else
-    {
-        g.setColour (juce::Colours::black.withAlpha (0.35f));
-        strokeLine (g, c + d * (F * 0.18f) + Point<float> (0.5f, 0.8f), c + d * (F * pal.pointerLen + R * 0.25f) + Point<float> (0.5f, 0.8f), 2.2f);
-        g.setColour (pal.pointer);
-        strokeLine (g, c + d * (F * 0.18f), c + d * (F * pal.pointerLen + R * 0.25f), 1.8f);
-    }
-
+    // pointer: a clear line from the middle to the edge (it turns with the knob)
+    g.setColour (pal.pointerOnSkirt ? pal.pointer : pal.pointer);
+    const float inner = pal.pointerOnSkirt ? F + 0.5f : F * 0.15f;
+    const float outer = pal.pointerOnSkirt ? R - 1.2f : F * 0.92f;
+    strokeLine (g, c + d * inner, c + d * outer, 2.4f);
 }
 
 void paintKnob (juce::Graphics& g, const KnobSpot& k, float v, bool hovered, bool dragging, Colour accent)
