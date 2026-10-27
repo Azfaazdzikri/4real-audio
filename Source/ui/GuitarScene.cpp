@@ -154,7 +154,7 @@ std::map<std::string, GuitarScene> buildScenes()
                     { 267, 573, 18, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
-        v.pivot = { 306, 546 };
+        v.pivot = { 348, 520 };
         v.direction = { 0, 1 };
         v.tiltDeg = 38;
         v.length = 17;
@@ -173,7 +173,7 @@ std::map<std::string, GuitarScene> buildScenes()
         s.code = "STR";
         s.pickups = { { { 285, 336, 40, 97 }, 0 }, { { 367, 336, 30, 97 }, 1 }, { { 448, 336, 28, 97 }, 2 } };
         s.knobs = { { 290, 494, 16, KnobKind::Volume, 0 },
-                    { 252, 533, 16, KnobKind::Tone, 0 },
+                    { 255, 528, 16, KnobKind::Tone, 0 },
                     { 220, 562, 16, KnobKind::Tone, 1 } };  // TONE MIDDLE
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
