@@ -65,8 +65,8 @@ std::map<std::string, GuitarScene> buildScenes()
         v.pivot = { 517, 283 };
         v.direction = { 0, -1 };
         v.tiltDeg = 38;
-        v.length = 18;
-        v.width = 12;
+        v.length = 17;
+        v.width = 11;
         v.slotMasks = { kB, kBoth, kN };
         v.tip = Colour (0xffeaa63a);
         v.tipShade = Colour (0xff8a4c10);
@@ -80,16 +80,16 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "335";
         s.pickups = { { { 349, 329, 60, 115 }, 0 }, { { 480, 329, 61, 115 }, 1 } };
-        s.knobs = { { 231, 500, 14, KnobKind::Volume, 1 },
-                    { 168, 518, 14, KnobKind::Volume, 0 },
-                    { 205, 548, 14, KnobKind::Tone, 1 },
-                    { 140, 556, 14, KnobKind::Tone, 0 } };
+        s.knobs = { { 231, 488, 14, KnobKind::Volume, 1 },
+                    { 168, 503, 14, KnobKind::Volume, 0 },
+                    { 205, 535, 14, KnobKind::Tone, 1 },
+                    { 140, 541, 14, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
         v.pivot = { 548, 256 };
         v.direction = { 0, -1 };
         v.tiltDeg = 38;
-        v.length = 15;
+        v.length = 17;
         v.width = 11;
         v.slotMasks = { kB, kBoth, kN };
         v.tip = cream;
@@ -114,7 +114,7 @@ std::map<std::string, GuitarScene> buildScenes()
         v.direction = { 0, 1 };
         v.tiltDeg = 36;
         v.length = 17;
-        v.width = 12;
+        v.width = 11;
         v.slotMasks = { kB, kBoth, kN };
         v.tip = Colour (0xffe0bd55);
         v.tipShade = Colour (0xff7d5c14);
@@ -135,8 +135,8 @@ std::map<std::string, GuitarScene> buildScenes()
         v.pivot = { 183, 516 };      // the plate (about 50 px wide) is centred on the middle of pivot..slotEnd
         v.slotEnd = { 236, 498 };
         v.direction = unit (0.32f, 0.947f);
-        v.length = 16;
-        v.width = 12;
+        v.length = 15;
+        v.width = 13;
         v.slotMasks = { kB, kBoth, kN };
         v.tip = cream;
         v.tipShade = creamShade;
@@ -157,8 +157,8 @@ std::map<std::string, GuitarScene> buildScenes()
         v.pivot = { 306, 546 };
         v.direction = { 0, 1 };
         v.tiltDeg = 38;
-        v.length = 13;
-        v.width = 10;
+        v.length = 17;
+        v.width = 11;
         v.slotMasks = { kB, kBoth, kN };
         v.tip = black;
         v.tipShade = blackShade;
@@ -172,16 +172,16 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "STR";
         s.pickups = { { { 285, 336, 40, 97 }, 0 }, { { 367, 336, 30, 97 }, 1 }, { { 448, 336, 28, 97 }, 2 } };
-        s.knobs = { { 291, 455, 17, KnobKind::Volume, 0 },
-                    { 263, 509, 17, KnobKind::Tone, 0 },
-                    { 225, 549, 17, KnobKind::Tone, 1 } };  // TONE MIDDLE
+        s.knobs = { { 290, 494, 16, KnobKind::Volume, 0 },
+                    { 252, 533, 16, KnobKind::Tone, 0 },
+                    { 220, 562, 16, KnobKind::Tone, 1 } };  // TONE MIDDLE
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 299, 533 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
-        v.slotEnd = { 341, 497 };
+        v.pivot = { 330, 522 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 368, 490 };
         v.direction = unit (0.65f, 0.76f);
-        v.length = 16;
-        v.width = 12;
+        v.length = 15;
+        v.width = 13;
         v.slotMasks = { kSB, kSBM, kSM, kSMN, kSN };
         v.tip = cream;
         v.tipShade = creamShade;
@@ -193,15 +193,15 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "TCR";
         s.pickups = { { { 268, 336, 54, 95 }, 0 }, { { 442, 340, 22, 90 }, 1 } };
-        s.knobs = { { 239, 512, 16, KnobKind::Volume, 0 },
-                    { 152, 512, 16, KnobKind::Tone, 0 } };
+        s.knobs = { { 239, 512, 13, KnobKind::Volume, 0 },
+                    { 152, 512, 13, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 270, 512 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
-        v.slotEnd = { 315, 512 };
+        v.pivot = { 272, 512 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 312, 512 };
         v.direction = unit (0.0f, -1.0f);
-        v.length = 16;
-        v.width = 12;
+        v.length = 12;
+        v.width = 11;
         v.slotMasks = { kB, kBoth, kN };
         v.tip = black;
         v.tipShade = blackShade;
@@ -222,7 +222,7 @@ std::map<std::string, GuitarScene> buildScenes()
         v.pivot = { 600, 300 };
         v.direction = { 0, -1 };
         v.tiltDeg = 38;
-        v.length = 15;
+        v.length = 17;
         v.width = 11;
         v.slotMasks = { kB, kBoth, kN };
         v.tip = Colour (0xffe0bd55);
@@ -404,7 +404,6 @@ void paintSelector (juce::Graphics& g, const SelectorSpot& s, float slot, const 
 {
     const int n = s.numSlots();
     slot = juce::jlimit (0.0f, static_cast<float> (juce::jmax (0, n - 1)), slot);
-    const Point<float> shadow (2.0f, 3.2f);
 
     auto tipDir = [&s, n] (float sl)
     {
@@ -429,59 +428,45 @@ void paintSelector (juce::Graphics& g, const SelectorSpot& s, float slot, const 
         }
         const auto dir = tipDir (slot);
         const auto tip = s.pivot + dir * s.length;
-        if (s.nutRadius > 0.0f) // mounting ring under the lever (the photo's own ring was damaged when the lever was erased)
-        {
-            const float r = s.nutRadius;
-            g.setColour (juce::Colours::black.withAlpha (0.35f));
-            g.fillEllipse (s.pivot.x - r + 1.5f, s.pivot.y - r + 2.5f, 2 * r, 2 * r);
-            g.setGradientFill (juce::ColourGradient (s.nutLight, s.pivot.x - r * 0.7f, s.pivot.y - r * 0.8f, s.nutDark,
-                                                     s.pivot.x + r * 0.8f, s.pivot.y + r * 0.9f, false));
-            g.fillEllipse (s.pivot.x - r, s.pivot.y - r, 2 * r, 2 * r);
-            g.setColour (juce::Colours::black.withAlpha (0.4f));
-            g.drawEllipse (s.pivot.x - r, s.pivot.y - r, 2 * r, 2 * r, 1.0f);
-            g.setGradientFill (juce::ColourGradient (s.nutDark.darker (0.4f), s.pivot.x - r * 0.4f, s.pivot.y - r * 0.5f,
-                                                     s.nutLight.withAlpha (0.8f), s.pivot.x + r * 0.5f, s.pivot.y + r * 0.5f, false));
-            g.fillEllipse (s.pivot.x - r * 0.62f, s.pivot.y - r * 0.62f, r * 1.24f, r * 1.24f);
-        }
-        // hub of the lever
-        g.setColour (juce::Colour (0xff25262a));
-        g.fillEllipse (s.pivot.x - s.width * 0.34f, s.pivot.y - s.width * 0.34f, s.width * 0.68f, s.width * 0.68f);
-        g.setColour (juce::Colour (0xffb9bcc3));
-        g.drawEllipse (s.pivot.x - s.width * 0.34f, s.pivot.y - s.width * 0.34f, s.width * 0.68f, s.width * 0.68f, 1.2f);
-        // shaft
-        g.setColour (juce::Colours::black.withAlpha (0.35f));
-        strokeLine (g, s.pivot + shadow, tip + shadow, s.width * 0.42f);
-        g.setColour (juce::Colour (0xff9fa2a9));
-        strokeLine (g, s.pivot, tip, s.width * 0.40f);
-        g.setColour (juce::Colour (0xffe9ebef));
-        strokeLine (g, s.pivot, tip, s.width * 0.14f);
+        const Colour line (0xff17181b);
+        // mounting ring (flat, with outline)
+        const float r = juce::jmax (s.nutRadius, s.width * 0.8f);
+        g.setColour (s.nutLight);
+        g.fillEllipse (s.pivot.x - r, s.pivot.y - r, 2 * r, 2 * r);
+        g.setColour (line);
+        g.drawEllipse (s.pivot.x - r, s.pivot.y - r, 2 * r, 2 * r, 1.3f);
+        g.setColour (s.nutDark);
+        g.fillEllipse (s.pivot.x - r * 0.55f, s.pivot.y - r * 0.55f, r * 1.1f, r * 1.1f);
+        // shaft: outline first, then the metal
+        strokeLine (g, s.pivot, tip, s.width * 0.42f + 2.4f);
+        g.setColour (juce::Colour (0xffd9dce2));
+        strokeLine (g, s.pivot, tip, s.width * 0.42f);
+        g.setColour (line);
+        g.fillEllipse (s.pivot.x - s.width * 0.26f, s.pivot.y - s.width * 0.26f, s.width * 0.52f, s.width * 0.52f);
         // tip: a rounded cap, long along the lever
-        const float along = s.width * 0.95f, across = s.width * 0.78f;
-        const auto c = tip + dir * (s.width * 0.18f);
+        const float along = s.width * 1.05f, across = s.width * 0.85f;
+        const auto c = tip + dir * (s.width * 0.2f);
         juce::Path cap;
         cap.addEllipse (-along * 0.5f, -across * 0.5f, along, across);
         const auto xf = juce::AffineTransform::rotation (std::atan2 (dir.y, dir.x)).translated (c.x, c.y);
-        g.setColour (juce::Colours::black.withAlpha (0.35f));
-        g.fillPath (cap, xf.translated (shadow.x, shadow.y));
-        juce::ColourGradient gr (s.tip.brighter (0.35f), c.x - along * 0.15f, c.y - across * 0.25f, s.tipShade, c.x + along * 0.5f,
-                                 c.y + across * 0.5f, true);
-        gr.addColour (0.55, s.tip);
-        g.setGradientFill (gr);
+        g.setColour (s.tip);
         g.fillPath (cap, xf);
-        g.setColour (juce::Colours::black.withAlpha (0.45f));
-        g.strokePath (cap, juce::PathStrokeType (1.0f), xf);
+        g.setColour (line);
+        g.strokePath (cap, juce::PathStrokeType (1.3f), xf);
         g.setColour (juce::Colours::white.withAlpha (0.55f));
-        g.fillEllipse (c.x - along * 0.22f, c.y - across * 0.30f, along * 0.28f, across * 0.22f);
+        g.fillEllipse (c.x - along * 0.22f, c.y - across * 0.30f, along * 0.26f, across * 0.18f);
     }
     else // Blade
     {
         const auto p0 = s.slotPoint (0), p1 = s.slotPoint (static_cast<float> (n - 1));
-        if (s.drawSlot)
+        const Colour line (0xff17181b);
+        if (s.drawSlot)   // the slot: a dark rounded groove with a thin outline
         {
             g.setColour (juce::Colour (0xff0b0b0c));
-            strokeLine (g, p0, p1, 3.6f);
-            g.setColour (juce::Colours::white.withAlpha (0.22f));
-            strokeLine (g, p0 + Point<float> (0.6f, 1.6f), p1 + Point<float> (0.6f, 1.6f), 1.0f);
+            strokeLine (g, p0, p1, 5.0f);
+            g.setColour (juce::Colour (0xff0b0b0c));
+            g.fillEllipse (p0.x - 2.5f, p0.y - 2.5f, 5.0f, 5.0f);
+            g.fillEllipse (p1.x - 2.5f, p1.y - 2.5f, 5.0f, 5.0f);
         }
         if (hovered)
         {
@@ -495,21 +480,19 @@ void paintSelector (juce::Graphics& g, const SelectorSpot& s, float slot, const 
                 g.fillEllipse (p.x - 3.0f, p.y - 3.0f, 6.0f, 6.0f);
             }
         }
+        // the lever: a flat rounded tab that stands out of the slot (outline, solid colour, small highlight)
         const auto start = s.slotPoint (slot);
-        const auto mid = start + s.direction * (s.length * 0.5f);
+        const auto mid = start + s.direction * (s.length * 0.12f);
         juce::Path body;
-        body.addRoundedRectangle (-s.length * 0.5f, -s.width * 0.5f, s.length, s.width, s.width * 0.45f);
+        body.addRoundedRectangle (-s.length * 0.5f, -s.width * 0.5f, s.length, s.width, s.width * 0.4f);
         const auto xf = juce::AffineTransform::rotation (std::atan2 (s.direction.y, s.direction.x)).translated (mid.x, mid.y);
-        g.setColour (juce::Colours::black.withAlpha (0.32f));
-        g.fillPath (body, xf.translated (shadow.x, shadow.y));
-        juce::ColourGradient gr (s.tip.brighter (0.3f), mid.x, mid.y - s.width * 0.5f, s.tipShade, mid.x, mid.y + s.width * 0.5f, false);
-        gr.addColour (0.4, s.tip);
-        g.setGradientFill (gr);
+        g.setColour (s.tip);
         g.fillPath (body, xf);
-        g.setColour (juce::Colours::black.withAlpha (0.45f));
-        g.strokePath (body, juce::PathStrokeType (1.0f), xf);
+        g.setColour (line);
+        g.strokePath (body, juce::PathStrokeType (1.4f), xf);
         g.setColour (juce::Colours::white.withAlpha (0.45f));
-        g.fillEllipse (mid.x - s.length * 0.28f, mid.y - s.width * 0.34f, s.length * 0.36f, s.width * 0.22f);
+        const auto hi = mid + s.direction * (s.length * 0.18f);
+        g.fillEllipse (hi.x - s.width * 0.22f, hi.y - s.width * 0.22f, s.width * 0.3f, s.width * 0.3f);
     }
 }
 
