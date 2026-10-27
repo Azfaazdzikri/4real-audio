@@ -80,10 +80,10 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "335";
         s.pickups = { { { 349, 329, 60, 115 }, 0 }, { { 480, 329, 61, 115 }, 1 } };
-        s.knobs = { { 400, 476, 16, KnobKind::Volume, 1 },
-                    { 452, 476, 16, KnobKind::Volume, 0 },
-                    { 400, 516, 16, KnobKind::Tone, 1 },
-                    { 452, 516, 16, KnobKind::Tone, 0 } };
+        s.knobs = { { 286, 458, 14, KnobKind::Volume, 1 },
+                    { 326, 462, 14, KnobKind::Volume, 0 },
+                    { 290, 489, 14, KnobKind::Tone, 1 },
+                    { 330, 493, 14, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
         v.pivot = { 548, 256 };
@@ -104,13 +104,13 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "SG";
         s.pickups = { { { 314, 338, 47, 88 }, 0 }, { { 430, 338, 47, 88 }, 1 } };
-        s.knobs = { { 295, 463, 15, KnobKind::Volume, 1 },
-                    { 350, 463, 15, KnobKind::Volume, 0 },
-                    { 295, 497, 15, KnobKind::Tone, 1 },
-                    { 350, 497, 15, KnobKind::Tone, 0 } };
+        s.knobs = { { 278, 466, 14, KnobKind::Volume, 1 },
+                    { 324, 466, 14, KnobKind::Volume, 0 },
+                    { 278, 498, 14, KnobKind::Tone, 1 },
+                    { 324, 498, 14, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
-        v.pivot = { 440, 485 };
+        v.pivot = { 410, 480 };
         v.direction = { 0, 1 };
         v.tiltDeg = 36;
         v.length = 17;
@@ -128,12 +128,12 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "PRS";
         s.pickups = { { { 309, 321, 64, 124 }, 0 }, { { 432, 321, 64, 124 }, 1 } };
-        s.knobs = { { 335, 512, 16, KnobKind::Volume, 0 },
-                    { 385, 525, 16, KnobKind::Tone, 0 } };
+        s.knobs = { { 318, 514, 16, KnobKind::Volume, 0 },
+                    { 268, 545, 16, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 425, 492 };      // the plate (about 50 px wide) is centred on the middle of pivot..slotEnd
-        v.slotEnd = { 465, 492 };
+        v.pivot = { 365, 520 };      // the plate (about 50 px wide) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 405, 520 };
         v.direction = unit (0.0f, 1.0f);
         v.length = 16;
         v.width = 12;
@@ -172,13 +172,13 @@ std::map<std::string, GuitarScene> buildScenes()
         GuitarScene s;
         s.code = "STR";
         s.pickups = { { { 285, 336, 40, 97 }, 0 }, { { 367, 336, 30, 97 }, 1 }, { { 448, 336, 28, 97 }, 2 } };
-        s.knobs = { { 345, 495, 17, KnobKind::Volume, 0 },
-                    { 400, 506, 17, KnobKind::Tone, 0 },    // TONE NECK
-                    { 455, 512, 17, KnobKind::Tone, 1 } };  // TONE MIDDLE
+        s.knobs = { { 312, 497, 17, KnobKind::Volume, 0 },
+                    { 366, 508, 17, KnobKind::Tone, 0 },    // TONE NECK
+                    { 420, 514, 17, KnobKind::Tone, 1 } };  // TONE MIDDLE
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 468, 533 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
-        v.slotEnd = { 528, 533 };
+        v.pivot = { 440, 538 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 500, 538 };
         v.direction = unit (0.0f, 1.0f);
         v.length = 16;
         v.width = 12;
@@ -197,9 +197,9 @@ std::map<std::string, GuitarScene> buildScenes()
                     { 250, 512, 16, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Blade;
-        v.pivot = { 375, 512 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
-        v.slotEnd = { 435, 512 };
-        v.direction = unit (0.0f, 1.0f);
+        v.pivot = { 385, 305 };      // the plate (about 65 px long) is centred on the middle of pivot..slotEnd
+        v.slotEnd = { 445, 305 };
+        v.direction = unit (0.0f, -1.0f);
         v.length = 16;
         v.width = 12;
         v.slotMasks = { kB, kBoth, kN };
