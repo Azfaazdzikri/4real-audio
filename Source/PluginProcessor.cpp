@@ -127,7 +127,8 @@ juce::AudioProcessorValueTreeState::ParameterLayout FourRealAudioProcessor::crea
     if (myGuitarAvailable())
         sourceNames.add ("My guitar (calibrated)");
     params.push_back (std::make_unique<AudioParameterChoice> (
-        ParameterID { "srcGuitar", 1 }, "Source guitar", sourceNames, 0));
+        ParameterID { "srcGuitar", 1 }, "Source guitar", sourceNames,
+        autoSourceAvailable() ? static_cast<int> (fourreal::allModels().size()) : 0));   // default: Auto
     params.push_back (std::make_unique<AudioParameterChoice> (
         ParameterID { "srcPos", 1 }, "Source pickup position",
         StringArray { "Position 1", "Position 2", "Position 3", "Position 4" }, 0)); // at most 4 recorded positions per guitar
