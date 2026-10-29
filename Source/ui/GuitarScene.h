@@ -51,6 +51,7 @@ struct SelectorSpot
     juce::Point<float> slotEnd;        // Blade only: the slot point of the last position (neck end)
     juce::Point<float> direction;      // Toggle: unit vector of the lever at the middle position.
                                        // Blade: unit vector from the slot point to the end of the lever
+    bool vertical = false;             // Toggle: the lever swings up (neck) / down (bridge) on the screen instead of sideways
     float tiltDeg = 35.0f;             // Toggle: tilt at the bridge (-) and neck (+) positions
     float length = 15.0f, width = 12.0f;
     std::vector<unsigned> slotMasks;   // pickup mask (bit i = pickup i) that every physical position of the real switch selects,

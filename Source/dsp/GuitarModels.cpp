@@ -89,11 +89,11 @@ std::vector<GuitarModel> buildModels()
 
     // --- The 8 recorded guitars. Only selector positions present in the training data are listed;
     // --- the order is also the order of the source list (the first entry is the default source).
-    models.push_back (makeIndependent ("LP", "les-paul", "Les Paul", 0xffd9a441, 500e3, 22e-9,
+    models.push_back (makeIndependent ("LP", "les-paul", "LP", 0xffd9a441, 500e3, 22e-9,
                                        { "Bridge humbucker", 5.5, 8.5e3 }, { "Neck humbucker", 4.5, 7.5e3 },
                                        kKeepAll));  // recorded: Bridge, Middle, Neck
 
-    models.push_back (makeIndependent ("335", "es-335", "ES-335", 0xffc8553d, 500e3, 22e-9,
+    models.push_back (makeIndependent ("335", "es-335", "335", 0xffc8553d, 500e3, 22e-9,
                                        { "Bridge humbucker", 5.2, 8.2e3 }, { "Neck humbucker", 4.5, 7.5e3 },
                                        kKeepNeck));  // recorded: Neck only
 
@@ -102,22 +102,22 @@ std::vector<GuitarModel> buildModels()
                                        { "Bridge humbucker", 5.5, 8.5e3 }, { "Neck humbucker", 4.5, 7.5e3 },
                                        kKeepBridge | kKeepNeck));  // recorded: Bridge, Neck
 
-    models.push_back (makeMaster ("PRS", "prs-se-custom-24", "PRS SE Custom 24", 0xffd0782b, 500e3, 22e-9,
+    models.push_back (makeMaster ("PRS", "prs-se-custom-24", "SE24", 0xffd0782b, 500e3, 22e-9,
                                   { "Bridge humbucker", 4.9, 8.6e3 }, { "Neck humbucker", 4.3, 7.6e3 },
                                   "Middle (both)", kKeepAll));  // recorded: Bridge, Middle, Neck
 
     // Rickenbacker 330: "hi-gain" single coils, volume + tone per pickup.
     {
-        auto m = makeIndependent ("RIC", "rickenbacker-330", "Rickenbacker 330", 0xff3fa7c9, 250e3, 22e-9,
+        auto m = makeIndependent ("RIC", "rickenbacker-330", "R330", 0xff3fa7c9, 250e3, 22e-9,
                                   { "Bridge hi-gain single coil", 3.3, 8.0e3 },
                                   { "Neck hi-gain single coil", 3.0, 7.2e3 },
                                   kKeepBridge);  // recorded: Bridge only
         models.push_back (std::move (m));
     }
 
-    models.push_back (makeStrat ("STR", "strat-sss", "Stratocaster (SSS)", { "Bridge single coil", 2.6, 6.6e3 }));
+    models.push_back (makeStrat ("STR", "strat-sss", "STR", { "Bridge single coil", 2.6, 6.6e3 }));
 
-    models.push_back (makeMaster ("TCR", "telecaster", "Telecaster", 0xffe5b64b, 250e3, 47e-9,
+    models.push_back (makeMaster ("TCR", "telecaster", "TLR", 0xffe5b64b, 250e3, 47e-9,
                                   { "Bridge single coil", 2.8, 7.6e3 }, { "Neck single coil", 2.5, 6.8e3 },
                                   "Bridge+Neck", kKeepBridge | kKeepNeck));  // recorded: Bridge, Neck
 
@@ -126,7 +126,7 @@ std::vector<GuitarModel> buildModels()
         GuitarModel m;
         m.code = "FLC";
         m.id = "gretsch-falcon";
-        m.displayName = "Gretsch Falcon (G6136TG)";
+        m.displayName = "White Falcon";
         m.accentRgb = 0xff2f7fd0;
         m.potOhm = 500e3;
         m.toneCapF = 22e-9;

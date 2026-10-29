@@ -15,10 +15,10 @@ di daftar kartu sebelah kiri (seperti ganti library piano di Pianoverse); satu k
 
 | Kode | Gitar target | Kontrol di foto |
 |---|---|---|
-| LP | Les Paul | selector 3, 2 volume, 2 tone |
-| 335 | ES-335 | selector (hanya Neck yang direkam), 2 volume, 2 tone |
+| LP | LP | selector 3, 2 volume, 2 tone |
+| 335 | 335 | selector (hanya Neck yang direkam), 2 volume, 2 tone |
 | SG | SG | selector (Bridge/Neck), 2 volume, 2 tone |
-| PRS | PRS SE Custom 24 | selector 3, 1 volume, 1 tone |
+| PRS | SE24 | selector 3, 1 volume, 1 tone |
 | RIC | Rickenbacker 330 | selector (hanya Bridge yang direkam), 2 volume, 2 tone |
 | STR | Stratocaster SSS | selector 5 posisi (4 direkam), 1 volume, 2 tone |
 | TCR | Telecaster | selector (Bridge/Neck), 1 volume, 1 tone |

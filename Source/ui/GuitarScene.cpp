@@ -62,6 +62,7 @@ std::map<std::string, GuitarScene> buildScenes()
                     { 238, 536, 17, KnobKind::Tone, 0 } };   // TONE NECK
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
+        v.vertical = true;
         v.pivot = { 517, 283 };
         v.direction = { 0, -1 };
         v.tiltDeg = 38;
@@ -86,6 +87,7 @@ std::map<std::string, GuitarScene> buildScenes()
                     { 140, 541, 14, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
+        v.vertical = true;
         v.pivot = { 548, 256 };
         v.direction = { 0, -1 };
         v.tiltDeg = 38;
@@ -110,6 +112,7 @@ std::map<std::string, GuitarScene> buildScenes()
                     { 174, 546, 14, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
+        v.vertical = true;
         v.pivot = { 234, 512 };
         v.direction = { 0, 1 };
         v.tiltDeg = 36;
@@ -154,6 +157,7 @@ std::map<std::string, GuitarScene> buildScenes()
                     { 267, 573, 18, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
+        v.vertical = true;
         v.pivot = { 348, 520 };
         v.direction = { 0, 1 };
         v.tiltDeg = 38;
@@ -219,6 +223,7 @@ std::map<std::string, GuitarScene> buildScenes()
                     { 560, 535, 15, KnobKind::Tone, 0 } };
         auto& v = s.selector;
         v.style = LeverStyle::Toggle;
+        v.vertical = true;
         v.pivot = { 600, 300 };
         v.direction = { 0, -1 };
         v.tiltDeg = 38;
@@ -268,7 +273,8 @@ int SelectorSpot::slotAt (Point<float> p) const
     float t;
     if (style == LeverStyle::Toggle)
     {
-        t = juce::jlimit (-1.0f, 1.0f, (p.x - pivot.x) / (length * 0.9f)) * 0.5f + 0.5f;
+        t = vertical ? juce::jlimit (-1.0f, 1.0f, (pivot.y - p.y) / (length * 0.9f)) * 0.5f + 0.5f
+                     : juce::jlimit (-1.0f, 1.0f, (p.x - pivot.x) / (length * 0.9f)) * 0.5f + 0.5f;
     }
     else
     {
@@ -407,6 +413,8 @@ void paintSelector (juce::Graphics& g, const SelectorSpot& s, float slot, const 
 
     auto tipDir = [&s, n] (float sl)
     {
+        if (s.vertical)   // up = neck, down = bridge; the middle position stands straight up out of the plate
+            return Point<float> (0.0f, -(sl - static_cast<float> (n - 1) * 0.5f) / juce::jmax (0.5f, static_cast<float> (n - 1) * 0.5f));
         const float mid = static_cast<float> (n - 1) * 0.5f;
         const float side = s.direction.y <= 0 ? 1.0f : -1.0f; // a larger slot always moves the tip toward +x (the neck)
         return rotated (s.direction, side * s.tiltDeg * (sl - mid) / juce::jmax (0.5f, mid));
@@ -420,7 +428,8 @@ void paintSelector (juce::Graphics& g, const SelectorSpot& s, float slot, const 
             g.drawEllipse (s.pivot.x - s.length - 8, s.pivot.y - s.length - 8, 2 * (s.length + 8), 2 * (s.length + 8), 2.0f);
             for (int i = 0; i < n; ++i)
             {
-                const auto p = s.pivot + tipDir (static_cast<float> (i)) * (s.length + 14.0f);
+                const auto p = s.vertical ? s.pivot + Point<float> (s.nutRadius + 14.0f, tipDir (static_cast<float> (i)).y * (s.length + 6.0f))
+                                          : s.pivot + tipDir (static_cast<float> (i)) * (s.length + 14.0f);
                 const bool ok = i < static_cast<int> (available.size()) && available[static_cast<size_t> (i)];
                 g.setColour (ok ? juce::Colours::white.withAlpha (0.9f) : juce::Colours::black.withAlpha (0.55f));
                 g.fillEllipse (p.x - 3.2f, p.y - 3.2f, 6.4f, 6.4f);
@@ -448,7 +457,8 @@ void paintSelector (juce::Graphics& g, const SelectorSpot& s, float slot, const 
         const auto c = tip + dir * (s.width * 0.2f);
         juce::Path cap;
         cap.addEllipse (-along * 0.5f, -across * 0.5f, along, across);
-        const auto xf = juce::AffineTransform::rotation (std::atan2 (dir.y, dir.x)).translated (c.x, c.y);
+        const auto ori = dir.getDistanceFromOrigin() > 0.05f ? dir : Point<float> (0.0f, -1.0f);
+        const auto xf = juce::AffineTransform::rotation (std::atan2 (ori.y, ori.x)).translated (c.x, c.y);
         g.setColour (s.tip);
         g.fillPath (cap, xf);
         g.setColour (line);
@@ -541,7 +551,12 @@ void paintSelectorHints (juce::Graphics& g, const SelectorSpot& s, const std::ve
         const float mid = static_cast<float> (n - 1) * 0.5f;
         const float side = s.direction.y <= 0 ? 1.0f : -1.0f;
         for (int i = 0; i < n; ++i)
-            dot (s.pivot + rotated (s.direction, side * s.tiltDeg * (static_cast<float> (i) - mid) / juce::jmax (0.5f, mid)) * (s.length + 14.0f), i, 3.2f);
+        {
+            if (s.vertical)
+                dot (s.pivot + Point<float> (s.nutRadius + 14.0f, -(static_cast<float> (i) - mid) / juce::jmax (0.5f, mid) * (s.length + 6.0f)), i, 3.2f);
+            else
+                dot (s.pivot + rotated (s.direction, side * s.tiltDeg * (static_cast<float> (i) - mid) / juce::jmax (0.5f, mid)) * (s.length + 14.0f), i, 3.2f);
+        }
     }
     else
     {
