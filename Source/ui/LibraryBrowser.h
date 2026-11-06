@@ -18,6 +18,7 @@ public:
     void mouseExit (const juce::MouseEvent&) override;
     void mouseDown (const juce::MouseEvent&) override;
     std::function<void (int)> onSelect;
+    std::function<void (int)> onLocked; // the player clicked a guitar that is not licensed
     void setSelected (int index) { if (index != selected) { selected = index; repaint(); } }
 
     static constexpr int kCardH = 74, kGap = 6;

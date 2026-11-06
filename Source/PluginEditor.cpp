@@ -34,7 +34,7 @@ void FourRealAudioEditor::setupToggle (Toggle& t, const juce::String& paramId, c
 }
 
 FourRealAudioEditor::FourRealAudioEditor (FourRealAudioProcessor& p)
-    : AudioProcessorEditor (&p), audioProcessor (p), browser (p), view (p)
+    : AudioProcessorEditor (&p), audioProcessor (p), browser (p), view (p), accountPanel (p)
 {
     setLookAndFeel (&look);
     shownGuitar = p.selectedGuitar();
@@ -43,6 +43,15 @@ FourRealAudioEditor::FourRealAudioEditor (FourRealAudioProcessor& p)
     addAndMakeVisible (browser);
     addAndMakeVisible (view);
     browser.onSelect = [this] (int i) { audioProcessor.selectGuitar (i); };
+
+    // Account: the button in the header opens the account window; clicking a locked guitar opens it too.
+    addAndMakeVisible (accountButton);
+    addChildComponent (accountPanel); // added last, so it covers everything when shown
+    accountButton.onClick = [this] { accountPanel.setHighlightedGuitar (-1); accountPanel.setVisible (true); accountPanel.toFront (true); };
+    browser.onLocked = [this] (int i) { accountPanel.setHighlightedGuitar (i); accountPanel.setVisible (true); accountPanel.toFront (true); };
+    accountPanel.onClose = [this] { accountPanel.setVisible (false); };
+    audioProcessor.license->addChangeListener (this);
+    updateAccountButton();
 
     setupKnob (inputKnob, "inputGain", "INPUT", true);
     setupKnob (intensityKnob, "intensity", "INTENSITY", false);
@@ -112,8 +121,21 @@ FourRealAudioEditor::FourRealAudioEditor (FourRealAudioProcessor& p)
 
 FourRealAudioEditor::~FourRealAudioEditor()
 {
+    audioProcessor.license->removeChangeListener (this);
     stopTimer();
     setLookAndFeel (nullptr);
+}
+
+void FourRealAudioEditor::changeListenerCallback (juce::ChangeBroadcaster*)
+{
+    updateAccountButton();
+    repaint(); // LOCKED marks in the library list
+}
+
+void FourRealAudioEditor::updateAccountButton()
+{
+    const auto s = audioProcessor.license->snapshot();
+    accountButton.setButtonText (s.signedIn ? (s.email.isNotEmpty() ? s.email : juce::String ("Account")) : juce::String ("Sign in"));
 }
 
 // The selector positions depend on which source guitar is chosen: only the positions that were recorded.
@@ -213,7 +235,7 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
     g.drawText ("4REAL AUDIO", 24, 8, 220, 32, juce::Justification::centredLeft);
     g.setColour (accent);
     g.drawText (juce::String (FourRealAudioProcessor::library().at (shownGuitar).displayName()).toUpperCase(),
-                230, 8, getWidth() - 254, 32, juce::Justification::centredLeft);
+                230, 8, getWidth() - 254 - 190, 32, juce::Justification::centredLeft);
 
     auto drawMeter = [&g, this] (juce::Rectangle<int> r, float level, const juce::String& name)
     {
@@ -261,6 +283,9 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
 
 void FourRealAudioEditor::resized()
 {
+    accountPanel.setBounds (getLocalBounds());
+    accountButton.setBounds (getWidth() - 24 - 180, 10, 180, 28);
+
     auto all = getLocalBounds().reduced (24);
     all.removeFromTop (44); // header
     auto leftCol = all.removeFromLeft (176);

@@ -76,7 +76,14 @@ void LibraryBrowser::mouseExit (const juce::MouseEvent&)
 void LibraryBrowser::mouseDown (const juce::MouseEvent& e)
 {
     const int c = cardAt (e.getPosition());
-    if (c >= 0 && processor.isGuitarUnlocked (c) && onSelect)
-        onSelect (c);
+    if (c < 0)
+        return;
+    if (processor.isGuitarUnlocked (c))
+    {
+        if (onSelect)
+            onSelect (c);
+    }
+    else if (onLocked)
+        onLocked (c);
 }
 }

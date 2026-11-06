@@ -1,0 +1,15 @@
+# Supabase project settings for the licence server (used by `supabase functions deploy` / `supabase db push`).
+# The Edge Functions check who is calling themselves (the account's access token for device-login, the device secret for the
+# others), so the gateway-level JWT check is off. That also keeps them working with Supabase's newer signing keys.
+
+[functions.device-login]
+verify_jwt = false
+
+[functions.device-refresh]
+verify_jwt = false
+
+[functions.device-logout]
+verify_jwt = false
+
+[functions.redeem-key]
+verify_jwt = false

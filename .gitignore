@@ -10,3 +10,8 @@ __pycache__/
 data/
 *.zip
 JUCE/
+
+# licence server secrets and generated serial numbers: never commit
+license_private_key*
+serials_*.csv
+serials_*.sql

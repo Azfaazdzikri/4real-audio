@@ -21,6 +21,30 @@ else()
     FetchContent_MakeAvailable(JUCE)
 endif()
 
+# --- Licensing ------------------------------------------------------------
+# FOURREAL_ENFORCE_LICENSE=OFF (default): test build, every guitar is unlocked, so beta testers are never locked out.
+# FOURREAL_ENFORCE_LICENSE=ON: release build, a guitar without a valid licence passes the sound through untouched. It needs the
+# three PUBLIC values below (see server/README.md; tools/license/gen_keys.py prints the public key). The signing key stays on the server.
+option(FOURREAL_ENFORCE_LICENSE "Enforce per-guitar licences (release builds)" OFF)
+set(FOURREAL_LICENSE_API_URL    "" CACHE STRING "Licence server URL, e.g. https://abcdefgh.supabase.co")
+set(FOURREAL_LICENSE_ANON_KEY   "" CACHE STRING "Supabase publishable (anon) key")
+set(FOURREAL_LICENSE_PUBLIC_KEY "" CACHE STRING "Ed25519 public key, base64 (32 bytes)")
+set(FOURREAL_LICENSE_ACCOUNT_URL "" CACHE STRING "Optional: page for 'Forgot password'")
+if(FOURREAL_ENFORCE_LICENSE AND (NOT FOURREAL_LICENSE_API_URL OR NOT FOURREAL_LICENSE_PUBLIC_KEY OR NOT FOURREAL_LICENSE_ANON_KEY))
+    message(FATAL_ERROR "FOURREAL_ENFORCE_LICENSE=ON needs FOURREAL_LICENSE_API_URL, FOURREAL_LICENSE_ANON_KEY and FOURREAL_LICENSE_PUBLIC_KEY")
+endif()
+if(FOURREAL_ENFORCE_LICENSE)
+    set(FOURREAL_ENFORCE_VALUE 1)
+else()
+    set(FOURREAL_ENFORCE_VALUE 0)
+endif()
+set(FOURREAL_LICENSE_DEFINES
+    FOURREAL_ENFORCE_LICENSE=${FOURREAL_ENFORCE_VALUE}
+    FOURREAL_LICENSE_API_URL="${FOURREAL_LICENSE_API_URL}"
+    FOURREAL_LICENSE_ANON_KEY="${FOURREAL_LICENSE_ANON_KEY}"
+    FOURREAL_LICENSE_PUBLIC_KEY="${FOURREAL_LICENSE_PUBLIC_KEY}"
+    FOURREAL_LICENSE_ACCOUNT_URL="${FOURREAL_LICENSE_ACCOUNT_URL}")
+
 # --- The plugin ---------------------------------------------------------
 # ONE plugin / standalone that holds the whole guitar library (Source/Library.h): the guitar it sounds like is chosen
 # inside the plugin. Formats: VST3 (loaded by Studio One) and Standalone.
@@ -64,6 +88,15 @@ set(FOURREAL_SOURCES
     Source/Library.cpp
     Source/Library.h
     Source/License.h
+    Source/license/LicenseConfig.h
+    Source/license/LicenseClient.cpp
+    Source/license/LicenseClient.h
+    Source/license/Ed25519.cpp
+    Source/license/Ed25519.h
+    Source/license/Token.cpp
+    Source/license/Token.h
+    Source/ui/AccountPanel.cpp
+    Source/ui/AccountPanel.h
     Source/ui/GuitarScene.cpp
     Source/ui/GuitarScene.h
     Source/ui/Photos.cpp
@@ -104,7 +137,8 @@ target_sources(FourReal PRIVATE ${FOURREAL_SOURCES})
 target_compile_definitions(FourReal PUBLIC
     JUCE_WEB_BROWSER=0
     JUCE_USE_CURL=0
-    JUCE_VST3_CAN_REPLACE_VST2=0)
+    JUCE_VST3_CAN_REPLACE_VST2=0
+    ${FOURREAL_LICENSE_DEFINES})
 
 target_link_libraries(FourReal
     PRIVATE
@@ -128,7 +162,8 @@ if(FOURREAL_BUILD_PREVIEW)
         JUCE_ALSA=0
         JUCE_JACK=0
         JUCE_MODAL_LOOPS_PERMITTED=0
-        JUCE_STANDALONE_APPLICATION=1)
+        JUCE_STANDALONE_APPLICATION=1
+        ${FOURREAL_LICENSE_DEFINES})
     target_link_libraries(FourReal_UiPreview
         PRIVATE
             juce::juce_gui_basics
@@ -155,6 +190,12 @@ if(FOURREAL_BUILD_TESTS)
         Source/dsp/SpecModel.cpp
         Source/dsp/SpecEngine.cpp)
     target_include_directories(spm_test PRIVATE Source/dsp)
+
+    add_executable(license_test
+        tests/license_test.cpp
+        Source/license/Ed25519.cpp
+        Source/license/Token.cpp)
+    target_include_directories(license_test PRIVATE Source)
 
     add_executable(library_test
         tests/library_test.cpp

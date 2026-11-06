@@ -5,6 +5,7 @@
 
 #include <juce_audio_utils/juce_audio_utils.h>
 #include "PluginProcessor.h"
+#include "ui/AccountPanel.h"
 #include "ui/GuitarView.h"
 #include "ui/LibraryBrowser.h"
 #include "ui/Look.h"
@@ -12,7 +13,8 @@
 // One window for the whole library: guitar list on the left, the photo of the chosen guitar with its working pickup selector,
 // volume and tone knobs in the middle, and below it the source guitar ("My guitar" calibration), input/intensity/output.
 class FourRealAudioEditor : public juce::AudioProcessorEditor,
-                            private juce::Timer
+                            private juce::Timer,
+                            private juce::ChangeListener
 {
 public:
     explicit FourRealAudioEditor (FourRealAudioProcessor&);
@@ -46,11 +48,15 @@ private:
     void refreshSourcePositions();
     void setSlotPanelVisible (bool shouldShow);
     void timerCallback() override;
+    void changeListenerCallback (juce::ChangeBroadcaster*) override;
+    void updateAccountButton();
 
     FourRealAudioProcessor& audioProcessor;
     fourreal::ui::Look look;
     fourreal::ui::LibraryBrowser browser;
     fourreal::ui::GuitarView view;
+    juce::TextButton accountButton;
+    fourreal::ui::AccountPanel accountPanel;
     int shownGuitar = -1;
     juce::Colour accent;
 

@@ -7,6 +7,7 @@
 
 #include "Library.h"
 #include "License.h"
+#include "license/LicenseClient.h"
 #include "dsp/CrossfadeFir.h"
 #include "dsp/FilterDesign.h"
 #include "dsp/GuitarCircuit.h"
@@ -61,6 +62,9 @@ public:
     static juce::AudioProcessorValueTreeState::ParameterLayout createLayout();
 
     juce::AudioProcessorValueTreeState apvts;
+
+    // Account / licence client, shared by every instance of the plugin in this process (see license/LicenseClient.h).
+    juce::SharedResourcePointer<fourreal::LicenseClient> license;
 
     // --- guitar library -----------------------------------------------------------------------------------------------
     static const fourreal::Library& library() { return fourreal::Library::get(); }
