@@ -3,6 +3,7 @@
 #include <algorithm>
 
 #include "../License.h"
+#include "Ed25519.h"
 
 namespace fourreal
 {
@@ -61,7 +62,14 @@ juce::String LicenseClient::machineId()
     auto raw = juce::SystemStats::getUniqueDeviceID();
     if (raw.isEmpty())
         raw = juce::SystemStats::getComputerName() + "|" + juce::SystemStats::getLogonName();
-    return juce::SHA256 ((raw + "|4real-audio").toUTF8()).toHexString().substring (0, 32);
+    // our own SHA-512 (license/Ed25519.h): juce::SHA256 lives in the juce_cryptography module, which this project does not link
+    const auto text = (raw + "|4real-audio").toStdString();
+    uint8_t digest[64];
+    license::sha512 (reinterpret_cast<const uint8_t*> (text.data()), text.size(), digest);
+    juce::String hex;
+    for (int i = 0; i < 16; ++i)
+        hex << juce::String::toHexString (digest[i]).paddedLeft ('0', 2);
+    return hex; // 32 hex characters
 }
 
 juce::String LicenseClient::machineName()
