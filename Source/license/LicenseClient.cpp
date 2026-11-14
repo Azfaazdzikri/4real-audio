@@ -358,18 +358,11 @@ void LicenseClient::doSignIn (const juce::String& email, const juce::String& pas
         }
     }
 
-    // 1. sign in with the account (the access token only lives in this function)
-    const auto login = postJson (api + "/auth/v1/token?grant_type=password", body, {});
-    const auto access = login.json.getProperty ("access_token", {}).toString();
-    if (login.status != 200 || access.isEmpty())
-    {
-        setMessage (login.errorText(), true);
-        return;
-    }
-
-    // 2. register this computer
+    // Sign in and register this computer in one request. The licence server checks the password with Supabase Auth itself
+    // (the plugin cannot call /auth/v1/token: its HTTP layer drops the ?grant_type=password part of a POST address).
     const auto reg = postJson (functionUrl ("device-login"),
-                               makeObject ({ { "machineId", machineId() }, { "machineName", machineName() } }), access);
+                               makeObject ({ { "email", email.trim() }, { "password", password },
+                                             { "machineId", machineId() }, { "machineName", machineName() } }), {});
     const auto token = reg.json.getProperty ("token", {}).toString();
     const auto newId = reg.json.getProperty ("deviceId", {}).toString();
     const auto newSecret = reg.json.getProperty ("deviceSecret", {}).toString();

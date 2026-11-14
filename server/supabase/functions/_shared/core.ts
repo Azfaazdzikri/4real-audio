@@ -24,6 +24,8 @@ export interface DeviceRow {
 
 export interface Store {
   getUserFromJwt(jwt: string): Promise<{ id: string; email: string } | null>;
+  /** Checks an email + password with Supabase Auth. */
+  signInWithPassword(email: string, password: string): Promise<{ ok: true; user: { id: string; email: string } } | { ok: false; reason: "invalid" | "unconfirmed" }>;
   getUserEmail(userId: string): Promise<string>;
   getEntitlements(userId: string): Promise<string[]>;
   findDevice(userId: string, machineId: string): Promise<DeviceRow | null>;
@@ -141,14 +143,26 @@ async function authDevice(store: Store, body: Record<string, unknown>): Promise<
 const isResult = (v: DeviceRow | Result): v is Result => "status" in v;
 
 // ---------------------------------------------------------------------------------------------------------------------
-/** POST device-login: Authorization: Bearer <access token of the account>. Registers this computer. */
+/** POST device-login: email + password (what the plugin sends) or Authorization: Bearer <access token>. Registers this computer. */
 export async function deviceLogin(store: Store, cfg: Config, bearer: string, body: Record<string, unknown>): Promise<Result> {
-  const { machineId, machineName } = body;
+  const { machineId, machineName, email, password } = body;
   if (!isText(machineId, 8, 128)) return fail(400, "bad_request", "Missing or invalid machine id.");
   const name = typeof machineName === "string" ? machineName.slice(0, 120) : "";
 
-  const user = bearer ? await store.getUserFromJwt(bearer) : null;
-  if (!user) return fail(401, "invalid_session", "Your sign-in is not valid. Please try again.");
+  let user: { id: string; email: string } | null = null;
+  if (typeof email === "string" || typeof password === "string") {
+    if (!isText(email, 3, 254) || !isText(password, 1, 200)) return fail(400, "bad_request", "Enter your email and password.");
+    const r = await store.signInWithPassword(email.trim(), password);
+    if (!r.ok) {
+      return r.reason === "unconfirmed"
+        ? fail(403, "email_not_confirmed", "Confirm your email first (check your inbox), then sign in.")
+        : fail(401, "invalid_login", "Wrong email or password.");
+    }
+    user = r.user;
+  } else {
+    user = bearer ? await store.getUserFromJwt(bearer) : null;
+    if (!user) return fail(401, "invalid_session", "Your sign-in is not valid. Please try again.");
+  }
 
   const existing = await store.findDevice(user.id, machineId);
   if (!existing) {

@@ -37,6 +37,16 @@ export function supabaseStore(): Store {
       if (error || !data.user || !data.user.email) return null;
       return { id: data.user.id, email: data.user.email };
     },
+    async signInWithPassword(email, password) {
+      // a separate client with the public (anon) key, so no user session ever touches the service-role client above
+      const anon = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { auth: { persistSession: false, autoRefreshToken: false } });
+      const { data, error } = await anon.auth.signInWithPassword({ email, password });
+      if (error || !data.user) {
+        const code = (error as { code?: string } | null)?.code ?? "";
+        return { ok: false, reason: code === "email_not_confirmed" ? "unconfirmed" : "invalid" };
+      }
+      return { ok: true, user: { id: data.user.id, email: data.user.email ?? email } };
+    },
     async getUserEmail(userId) {
       const { data } = await db.auth.admin.getUserById(userId);
       return data.user?.email ?? "";

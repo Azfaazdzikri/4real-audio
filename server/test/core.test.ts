@@ -36,6 +36,13 @@ class MemoryStore implements Store {
   async getUserFromJwt(jwt: string) {
     return this.users.get(jwt) ?? null;
   }
+  passwords = new Map<string, { id: string; password: string; confirmed: boolean }>(); // email -> account
+  async signInWithPassword(email: string, password: string) {
+    const a = this.passwords.get(email);
+    if (!a || a.password !== password) return { ok: false as const, reason: "invalid" as const };
+    if (!a.confirmed) return { ok: false as const, reason: "unconfirmed" as const };
+    return { ok: true as const, user: { id: a.id, email } };
+  }
   async getUserEmail(userId: string) {
     return [...this.users.values()].find((u) => u.id === userId)?.email ?? "";
   }
@@ -125,6 +132,32 @@ test("login makes a signed token bound to the computer, with the account's guita
   const tampered = payloadBytes.slice();
   tampered[10] ^= 1;
   assert.ok(!(await crypto.subtle.verify("Ed25519", ctx.key.pair.publicKey, signature, tampered)), "a changed payload does not verify");
+});
+
+test("login with email + password (what the plugin sends): token for that account, no bearer needed", async () => {
+  const ctx = await setup();
+  ctx.store.passwords.set("alice@example.com", { id: "11111111-1111-1111-1111-111111111111", password: "correct horse", confirmed: true });
+  ctx.store.entitlements.get("11111111-1111-1111-1111-111111111111")!.add("LP");
+  const r = await deviceLogin(ctx.store, ctx.cfg, "anon-key-as-bearer", { email: " alice@example.com ", password: "correct horse", machineId: MACHINE_A, machineName: "PC" });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.deepEqual(r.body.guitars, ["LP"]);
+  assert.equal(decodeToken(r.body.token as string).payload.email, "alice@example.com");
+});
+
+test("login with a wrong password, an unknown email or an unconfirmed email is refused; nothing is registered", async () => {
+  const ctx = await setup();
+  ctx.store.passwords.set("alice@example.com", { id: "11111111-1111-1111-1111-111111111111", password: "correct horse", confirmed: true });
+  ctx.store.passwords.set("new@example.com", { id: "33333333-3333-3333-3333-333333333333", password: "pw12345678", confirmed: false });
+  const bad = await deviceLogin(ctx.store, ctx.cfg, "", { email: "alice@example.com", password: "wrong", machineId: MACHINE_A });
+  assert.equal(bad.status, 401);
+  assert.equal(bad.body.error, "invalid_login");
+  const unknown = await deviceLogin(ctx.store, ctx.cfg, "", { email: "nobody@example.com", password: "x", machineId: MACHINE_A });
+  assert.deepEqual(unknown.body, bad.body); // same answer: no way to learn which emails exist
+  const unconfirmed = await deviceLogin(ctx.store, ctx.cfg, "", { email: "new@example.com", password: "pw12345678", machineId: MACHINE_A });
+  assert.equal(unconfirmed.status, 403);
+  assert.equal(unconfirmed.body.error, "email_not_confirmed");
+  assert.equal((await deviceLogin(ctx.store, ctx.cfg, "", { email: "alice@example.com", machineId: MACHINE_A })).status, 400);
+  assert.equal(ctx.store.devices.size, 0);
 });
 
 test("a new account has a valid token with no guitars (everything locked)", async () => {
