@@ -46,5 +46,37 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: 4real-audio-windows-x64
+          name: 4real-audio-windows-x64-TEST-unlocked
+          path: dist
+
+  # Release build: guitars are LOCKED until the signed-in account owns them (see server/README.md).
+  # Only PUBLIC values are here: the server URL, the Supabase publishable (anon) key and the Ed25519 PUBLIC key.
+  # The private signing key lives only in the Supabase secret LICENSE_SIGNING_KEY.
+  build-release:
+    needs: dsp-tests
+    runs-on: windows-latest
+    env:
+      LICENSE_API_URL: "https://kzyyqshqaripdlderkoa.supabase.co"
+      LICENSE_ANON_KEY: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6eXlxc2hxYXJpcGRsZGVya29hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQwMjA4NTksImV4cCI6MjEwOTU5Njg1OX0.foH4KJKuR6NxBxd8HMda3nL8A6fY8PTD7ao-bI0-ZLQ"
+      LICENSE_PUBLIC_KEY: "ARjJdtOGzxIV5VV5ycCdNpVBBfftAKgmG-7WgJov9CE"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (licence enforced)
+        shell: pwsh
+        run: cmake -S . -B build -A x64 "-DFOURREAL_ENFORCE_LICENSE=ON" "-DFOURREAL_LICENSE_API_URL=$env:LICENSE_API_URL" "-DFOURREAL_LICENSE_ANON_KEY=$env:LICENSE_ANON_KEY" "-DFOURREAL_LICENSE_PUBLIC_KEY=$env:LICENSE_PUBLIC_KEY"
+
+      - name: Build VST3 and Standalone
+        run: cmake --build build --config Release --target FourReal_VST3 FourReal_Standalone --parallel
+
+      - name: Collect outputs
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item -Recurse -Force "build/FourReal_artefacts/Release/VST3/*" dist/
+          Copy-Item -Recurse -Force "build/FourReal_artefacts/Release/Standalone/*" dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 4real-audio-windows-x64-RELEASE-locked
           path: dist
