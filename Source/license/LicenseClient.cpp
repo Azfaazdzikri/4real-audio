@@ -9,7 +9,8 @@ namespace fourreal
 {
 namespace
 {
-constexpr int kConnectionTimeoutMs = 10000;
+// Long on purpose: the account server (3ffect.my.id, a free Render instance) may need up to a minute to wake up.
+constexpr int kConnectionTimeoutMs = 90000;
 constexpr int64_t kRefreshEverySeconds = 6 * 3600; // while the host keeps running
 
 int64_t unixNow() { return juce::Time::currentTimeMillis() / 1000; }
@@ -105,6 +106,14 @@ void LicenseClient::signIn (const juce::String& email, const juce::String& passw
 
 void LicenseClient::createAccount (const juce::String& email, const juce::String& password)
 {
+    // With an account site configured (3ffect.my.id) the account is made there; this plugin only signs in with it.
+    const juce::String site = juce::String (FOURREAL_LICENSE_ACCOUNT_URL).trimCharactersAtEnd ("/");
+    if (site.isNotEmpty())
+    {
+        juce::URL (site + "/register").launchInDefaultBrowser();
+        setMessage ("Create your account in the browser, confirm the code sent to your email, then sign in here.", false);
+        return;
+    }
     post ([this, email, password] { doSignIn (email, password, true); });
 }
 

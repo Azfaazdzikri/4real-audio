@@ -49,9 +49,9 @@ AccountPanel::AccountPanel (FourRealAudioProcessor& p) : processor (p), client (
     closeButton.onClick = [this] { if (onClose) onClose(); };
     forgotButton.onClick = [this]
     {
-        const juce::String url (FOURREAL_LICENSE_ACCOUNT_URL);
+        const juce::String url (juce::String (FOURREAL_LICENSE_ACCOUNT_URL).trimCharactersAtEnd ("/"));
         if (url.isNotEmpty())
-            juce::URL (url).launchInDefaultBrowser();
+            juce::URL (url + "/forgot-password").launchInDefaultBrowser();
     };
     forgotButton.setVisible (juce::String (FOURREAL_LICENSE_ACCOUNT_URL).isNotEmpty());
 

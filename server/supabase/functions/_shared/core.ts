@@ -24,8 +24,11 @@ export interface DeviceRow {
 
 export interface Store {
   getUserFromJwt(jwt: string): Promise<{ id: string; email: string } | null>;
-  /** Checks an email + password with Supabase Auth. */
-  signInWithPassword(email: string, password: string): Promise<{ ok: true; user: { id: string; email: string } } | { ok: false; reason: "invalid" | "unconfirmed" }>;
+  /** Checks an email + password against the account site (3ffect.my.id) and returns the matching licence account. */
+  signInWithPassword(
+    email: string,
+    password: string,
+  ): Promise<{ ok: true; user: { id: string; email: string } } | { ok: false; reason: "invalid" | "unconfirmed" | "throttled" | "unavailable" }>;
   getUserEmail(userId: string): Promise<string>;
   getEntitlements(userId: string): Promise<string[]>;
   findDevice(userId: string, machineId: string): Promise<DeviceRow | null>;
@@ -154,9 +157,10 @@ export async function deviceLogin(store: Store, cfg: Config, bearer: string, bod
     if (!isText(email, 3, 254) || !isText(password, 1, 200)) return fail(400, "bad_request", "Enter your email and password.");
     const r = await store.signInWithPassword(email.trim(), password);
     if (!r.ok) {
-      return r.reason === "unconfirmed"
-        ? fail(403, "email_not_confirmed", "Confirm your email first (check your inbox), then sign in.")
-        : fail(401, "invalid_login", "Wrong email or password.");
+      if (r.reason === "unconfirmed") return fail(403, "email_not_confirmed", "Confirm your email first (check your inbox), then sign in.");
+      if (r.reason === "throttled") return fail(429, "too_many_attempts", "Too many failed sign-ins. Wait a few minutes and try again.");
+      if (r.reason === "unavailable") return fail(503, "account_server_unavailable", "The account server (3ffect.my.id) could not be reached. Try again in a minute.");
+      return fail(401, "invalid_login", "Wrong email or password.");
     }
     user = r.user;
   } else {

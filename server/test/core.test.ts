@@ -296,3 +296,14 @@ test("writes cross-language cases for the C++ verifier (only when LICENSE_CROSS_
   lines[5] = `CASE server_token_expired Expired - ${sl.token}`;
   writeFileSync(file, lines.join("\n") + "\n");
 });
+
+test("account server problems give clear errors and register nothing", async () => {
+  const ctx = await setup();
+  for (const [reason, status, error] of [["throttled", 429, "too_many_attempts"], ["unavailable", 503, "account_server_unavailable"]] as const) {
+    ctx.store.signInWithPassword = async () => ({ ok: false as const, reason });
+    const r = await deviceLogin(ctx.store, ctx.cfg, "", { email: "alice@example.com", password: "pw", machineId: MACHINE_A });
+    assert.equal(r.status, status);
+    assert.equal(r.body.error, error);
+  }
+  assert.equal(ctx.store.devices.size, 0);
+});

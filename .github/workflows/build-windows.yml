@@ -64,7 +64,7 @@ jobs:
 
       - name: Configure (licence enforced)
         shell: pwsh
-        run: cmake -S . -B build -A x64 "-DFOURREAL_ENFORCE_LICENSE=ON" "-DFOURREAL_LICENSE_API_URL=$env:LICENSE_API_URL" "-DFOURREAL_LICENSE_ANON_KEY=$env:LICENSE_ANON_KEY" "-DFOURREAL_LICENSE_PUBLIC_KEY=$env:LICENSE_PUBLIC_KEY"
+        run: cmake -S . -B build -A x64 "-DFOURREAL_ENFORCE_LICENSE=ON" "-DFOURREAL_LICENSE_API_URL=$env:LICENSE_API_URL" "-DFOURREAL_LICENSE_ANON_KEY=$env:LICENSE_ANON_KEY" "-DFOURREAL_LICENSE_PUBLIC_KEY=$env:LICENSE_PUBLIC_KEY" "-DFOURREAL_LICENSE_ACCOUNT_URL=https://3ffect.my.id"
 
       - name: Build VST3 and Standalone
         run: cmake --build build --config Release --target FourReal_VST3 FourReal_Standalone --parallel

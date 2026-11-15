@@ -38,14 +38,49 @@ export function supabaseStore(): Store {
       return { id: data.user.id, email: data.user.email };
     },
     async signInWithPassword(email, password) {
-      // a separate client with the public (anon) key, so no user session ever touches the service-role client above
-      const anon = createClient(url, Deno.env.get("SUPABASE_ANON_KEY")!, { auth: { persistSession: false, autoRefreshToken: false } });
-      const { data, error } = await anon.auth.signInWithPassword({ email, password });
-      if (error || !data.user) {
-        const code = (error as { code?: string } | null)?.code ?? "";
-        return { ok: false, reason: code === "email_not_confirmed" ? "unconfirmed" : "invalid" };
+      // The password is checked by the 3ffect.my.id account server (its own login, BCrypt and attempt limiter).
+      // Its answer carries the canonical email. The licence account is a shadow user in Supabase Auth with that email,
+      // created on first sign-in (so an existing 4real-audio account with the same email is simply reused).
+      const base = (Deno.env.get("ACCOUNT_API_URL") ?? "https://threeffect-serverapp.onrender.com").replace(/\/+$/, "");
+      let res: Response;
+      try {
+        // generous timeout: a free Render instance can need about a minute to wake up
+        res = await fetch(`${base}/auth/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ email, password }),
+          signal: AbortSignal.timeout(100_000),
+        });
+      } catch (e) {
+        console.error("account server unreachable:", e instanceof Error ? e.message : e);
+        return { ok: false, reason: "unavailable" };
       }
-      return { ok: true, user: { id: data.user.id, email: data.user.email ?? email } };
+      if (res.status === 401 || res.status === 400) return { ok: false, reason: "invalid" };
+      if (res.status === 429) return { ok: false, reason: "throttled" };
+      if (!res.ok) {
+        console.error("account server answered", res.status);
+        return { ok: false, reason: "unavailable" };
+      }
+      const info = (await res.json().catch(() => null)) as { email?: string } | null;
+      const canonical = (typeof info?.email === "string" ? info.email : email).trim().toLowerCase();
+      if (!canonical) return { ok: false, reason: "unavailable" };
+
+      const lookup = async (): Promise<string | null> => {
+        const { data, error } = await db.rpc("licence_user_id_for_email", { p_email: canonical });
+        if (error) throw new Error(error.message);
+        return (data as string | null) ?? null;
+      };
+      let id = await lookup();
+      if (!id) {
+        const created = await db.auth.admin.createUser({ email: canonical, email_confirm: true, password: crypto.randomUUID() + crypto.randomUUID() });
+        if (created.error || !created.data.user) {
+          id = await lookup(); // lost a race with a parallel sign-in
+          if (!id) throw new Error(created.error?.message ?? "could not create the licence account");
+        } else {
+          id = created.data.user.id;
+        }
+      }
+      return { ok: true, user: { id, email: canonical } };
     },
     async getUserEmail(userId) {
       const { data } = await db.auth.admin.getUserById(userId);
