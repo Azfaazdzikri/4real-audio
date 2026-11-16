@@ -27,8 +27,9 @@ di daftar kartu sebelah kiri (seperti ganti library piano di Pianoverse); satu k
 - Tiap gitar tampil sebagai **foto** dengan kontrol yang hidup: klik pickup untuk memilihnya, geser tuas selector, putar knob
   volume/tone (knob digambar sendiri oleh plugin dan benar-benar berputar) (drag naik-turun, scroll mouse, double-click = 10, Shift = halus). Knob hanya menunjukkan angka 0.0 - 10.0.
   Posisi selector yang tidak direkam tidak bisa dipilih. Setiap gitar mengingat posisi knob-nya sendiri.
-- **Lisensi per gitar**: `Source/License.h` sudah punya id lisensi per gitar (`4real.guitar.<KODE>`), tapi untuk sekarang
-  semuanya terbuka (`kUnlockEverything = true`).
+- **Lisensi per gitar**: `Source/License.h` sudah punya id lisensi per gitar (`4real.guitar.<KODE>`), dan setiap build
+  selalu menerapkan lisensi (tidak ada versi unlocked): gitar yang belum dimiliki akunnya tampil LOCKED dan suaranya dilewatkan apa adanya.
+  Cara kerja akun, serial, dan server: `server/README.md`.
 - Foto gitar (`Source/ui/photos/<KODE>.jpg`, 1376x768) adalah foto bersih tanpa knob dan tanpa tuas selector; knob, tuas, dan
   pickup menyala digambar oleh plugin. Posisi pickup/knob/tuas di foto ada di `Source/ui/GuitarScene.cpp` (satuan piksel foto);
   `tools/scene_preview.cpp` merender hasilnya ke PNG tanpa GUI. Kalau foto diganti, sesuaikan angka di file itu, lalu jalankan

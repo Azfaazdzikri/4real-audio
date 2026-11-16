@@ -131,8 +131,6 @@ void AccountPanel::update()
     juce::String text = s.message;
     if (s.busy)
         text = "Please wait...";
-    else if (! s.enforced && text.isEmpty())
-        text = "Test build: licensing is not enforced, every guitar is unlocked.";
     status.setColour (juce::Label::textColourId, s.messageIsError && ! s.busy ? errorColour : juce::Colours::white.withAlpha (0.8f));
     status.setText (text, juce::dontSendNotification);
 
@@ -206,7 +204,7 @@ void AccountPanel::paint (juce::Graphics& g)
     {
         const auto& entry = FourRealAudioProcessor::library().at (i);
         const auto r = juce::Rectangle<int> (rowsArea.getX(), rowsArea.getY() + i * rowH, rowsArea.getWidth(), rowH);
-        const bool active = ! s.enforced || (s.licenceValid && s.guitars.contains (entry.code()));
+        const bool active = s.licenceValid && s.guitars.contains (entry.code());
 
         if (i == highlighted)
         {
@@ -220,7 +218,7 @@ void AccountPanel::paint (juce::Graphics& g)
         g.drawText (entry.displayName(), r.withTrimmedLeft (26), juce::Justification::centredLeft, true);
         g.setColour (active ? okColour : lockedColour);
         g.setFont (juce::Font (juce::FontOptions (12.5f, juce::Font::bold)));
-        g.drawText (active ? (s.enforced ? "ACTIVE" : "UNLOCKED (test build)") : "LOCKED", r.withTrimmedRight (8), juce::Justification::centredRight, false);
+        g.drawText (active ? "ACTIVE" : "LOCKED", r.withTrimmedRight (8), juce::Justification::centredRight, false);
         g.setColour (lineColour);
         g.drawHorizontalLine (r.getBottom() - 1, static_cast<float> (r.getX()), static_cast<float> (r.getRight()));
     }

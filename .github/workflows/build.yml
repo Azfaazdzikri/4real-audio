@@ -1,0 +1,102 @@
+name: Build installers (Windows + macOS)
+
+# Every build enforces the per-guitar licences (there is no unlocked build). The licence values (server URL, publishable key and
+# the Ed25519 PUBLIC key) are in CMakeLists.txt; the private signing key lives only in the Supabase secret LICENSE_SIGNING_KEY.
+# Output: ONE installer per platform, ready to give to players:
+#   4real-audio-<version>-Windows-x64-Setup.exe   (Inno Setup: VST3 + Standalone, with uninstaller)
+#   4real-audio-<version>-macOS.pkg               (VST3 + Audio Unit + Standalone, Intel + Apple Silicon)
+
+on:
+  push:
+    branches: [ "**" ]
+    paths-ignore:
+      - "docs/**"
+      - "training/**"
+      - "**.md"
+  workflow_dispatch:
+
+jobs:
+  dsp-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and run DSP + spectral engine tests
+        run: |
+          g++ -std=c++20 -O2 -ISource/dsp tests/dsp_test.cpp Source/dsp/GuitarCircuit.cpp Source/dsp/GuitarModels.cpp Source/dsp/FilterDesign.cpp -o dsp_test
+          ./dsp_test
+          g++ -std=c++20 -O2 -ISource/dsp tests/spm_test.cpp Source/dsp/SpecModel.cpp Source/dsp/SpecEngine.cpp -o spm_test
+          for c in LP STR FLC; do ./spm_test models/$c/model.spm tests/golden/golden_spm_$c.json; done
+          for c in 335 SG PRS RIC TCR; do test -s models/$c/model.spm; done
+          g++ -std=c++20 -O2 -ISource/dsp tests/library_test.cpp Source/dsp/GuitarModels.cpp Source/dsp/GuitarCircuit.cpp Source/dsp/FilterDesign.cpp Source/dsp/SpecModel.cpp -o library_test
+          ./library_test models
+      - name: Licence tests (Ed25519 + token format)
+        run: |
+          g++ -std=c++20 -O2 -ISource tests/license_test.cpp Source/license/Ed25519.cpp Source/license/Token.cpp -o license_test
+          ./license_test tests/license/vectors.txt tests/license/token_cases.txt
+
+  windows-installer:
+    needs: dsp-tests
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: ver
+        shell: bash
+        run: echo "version=$(sed -n 's/^project(FourRealAudio VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: Configure
+        run: cmake -S . -B build -A x64
+
+      - name: Build VST3 and Standalone
+        run: cmake --build build --config Release --target FourReal_VST3 FourReal_Standalone --parallel
+
+      - name: Install or update Inno Setup (the script needs 6.3 or newer)
+        shell: pwsh
+        run: |
+          choco upgrade innosetup -y --no-progress
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          if (-not (Test-Path $iscc)) { throw "Inno Setup was not found at $iscc" }
+
+      - name: Build the installer
+        shell: pwsh
+        run: |
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          $build = (Resolve-Path "build/FourReal_artefacts/Release").Path
+          $out = Join-Path (Get-Location) "installer-out"
+          & $iscc "/DAppVersion=${{ steps.ver.outputs.version }}" "/DBuildDir=$build" "/DOutDir=$out" "installer/windows/4real-audio.iss"
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed" }
+          Get-ChildItem $out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 4real-audio-Windows-x64-installer
+          path: installer-out/*.exe
+          if-no-files-found: error
+
+  macos-installer:
+    needs: dsp-tests
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: ver
+        run: echo "version=$(sed -n 's/^project(FourRealAudio VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)" >> "$GITHUB_OUTPUT"
+
+      - name: "Configure (universal build: Apple Silicon and Intel, macOS 11 and newer)"
+        run: cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+
+      - name: Build VST3, Audio Unit and Standalone
+        run: cmake --build build --config Release --target FourReal_VST3 FourReal_AU FourReal_Standalone --parallel
+
+      - name: Build the installer
+        run: |
+          ./installer/macos/build_pkg.sh "${{ steps.ver.outputs.version }}" build/FourReal_artefacts/Release installer-out
+          ls -la installer-out
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: 4real-audio-macOS-installer
+          path: installer-out/*.pkg
+          if-no-files-found: error

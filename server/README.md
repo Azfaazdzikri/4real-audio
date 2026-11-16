@@ -23,9 +23,9 @@ contains only the public key, so it verifies offline but cannot forge a licence.
 4. `supabase secrets set LICENSE_SIGNING_KEY="$(cat license_private_key.txt)"`
    Optional: `LICENSE_MAX_DEVICES` (default 3), `LICENSE_TOKEN_DAYS` (default 30).
 5. `supabase functions deploy device-login device-refresh device-logout redeem-key` (run from `server/`).
-6. Release build of the plugin:
-   `cmake -DFOURREAL_ENFORCE_LICENSE=ON -DFOURREAL_LICENSE_API_URL=https://<ref>.supabase.co -DFOURREAL_LICENSE_ANON_KEY=<publishable key> -DFOURREAL_LICENSE_PUBLIC_KEY=<public key> ...`
-   Without `ENFORCE=ON` (the default) every guitar is unlocked: use that for beta builds.
+6. Build the plugin. There is no unlocked build: every build enforces the licences. The server URL, the publishable key and the
+   PUBLIC key are set in `CMakeLists.txt` (change them there, or pass `-DFOURREAL_LICENSE_API_URL=...`, `-DFOURREAL_LICENSE_ANON_KEY=...`,
+   `-DFOURREAL_LICENSE_PUBLIC_KEY=...` for another server). The installers are built by GitHub Actions (`.github/workflows/build.yml`).
 
 ## Selling / giving guitars
 

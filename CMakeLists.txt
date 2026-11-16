@@ -22,24 +22,20 @@ else()
 endif()
 
 # --- Licensing ------------------------------------------------------------
-# FOURREAL_ENFORCE_LICENSE=OFF (default): test build, every guitar is unlocked, so beta testers are never locked out.
-# FOURREAL_ENFORCE_LICENSE=ON: release build, a guitar without a valid licence passes the sound through untouched. It needs the
-# three PUBLIC values below (see server/README.md; tools/license/gen_keys.py prints the public key). The signing key stays on the server.
-option(FOURREAL_ENFORCE_LICENSE "Enforce per-guitar licences (release builds)" OFF)
-set(FOURREAL_LICENSE_API_URL    "" CACHE STRING "Licence server URL, e.g. https://abcdefgh.supabase.co")
-set(FOURREAL_LICENSE_ANON_KEY   "" CACHE STRING "Supabase publishable (anon) key")
-set(FOURREAL_LICENSE_PUBLIC_KEY "" CACHE STRING "Ed25519 public key, base64 (32 bytes)")
-set(FOURREAL_LICENSE_ACCOUNT_URL "" CACHE STRING "Optional: page for 'Forgot password'")
-if(FOURREAL_ENFORCE_LICENSE AND (NOT FOURREAL_LICENSE_API_URL OR NOT FOURREAL_LICENSE_PUBLIC_KEY OR NOT FOURREAL_LICENSE_ANON_KEY))
-    message(FATAL_ERROR "FOURREAL_ENFORCE_LICENSE=ON needs FOURREAL_LICENSE_API_URL, FOURREAL_LICENSE_ANON_KEY and FOURREAL_LICENSE_PUBLIC_KEY")
-endif()
-if(FOURREAL_ENFORCE_LICENSE)
-    set(FOURREAL_ENFORCE_VALUE 1)
-else()
-    set(FOURREAL_ENFORCE_VALUE 0)
+# Every build enforces the per-guitar licences: a guitar without a valid licence passes the sound through untouched (there is no
+# unlocked build). The values below are PUBLIC (server URL, the Supabase publishable "anon" key and the Ed25519 PUBLIC key), so
+# they are safe to keep here; the signing (private) key lives only in the Supabase secret LICENSE_SIGNING_KEY (see server/README.md).
+# They can be overridden with -D..., for example to point a test build at another server.
+set(FOURREAL_LICENSE_API_URL "https://kzyyqshqaripdlderkoa.supabase.co" CACHE STRING "Licence server URL")
+set(FOURREAL_LICENSE_ANON_KEY
+    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imt6eXlxc2hxYXJpcGRsZGVya29hIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTQwMjA4NTksImV4cCI6MjEwOTU5Njg1OX0.foH4KJKuR6NxBxd8HMda3nL8A6fY8PTD7ao-bI0-ZLQ"
+    CACHE STRING "Supabase publishable (anon) key")
+set(FOURREAL_LICENSE_PUBLIC_KEY "ARjJdtOGzxIV5VV5ycCdNpVBBfftAKgmG-7WgJov9CE" CACHE STRING "Ed25519 public key, base64 (32 bytes)")
+set(FOURREAL_LICENSE_ACCOUNT_URL "https://3ffect.my.id" CACHE STRING "Account site: sign-in approval, create account, forgot password")
+if(NOT FOURREAL_LICENSE_API_URL OR NOT FOURREAL_LICENSE_PUBLIC_KEY OR NOT FOURREAL_LICENSE_ANON_KEY)
+    message(FATAL_ERROR "FOURREAL_LICENSE_API_URL, FOURREAL_LICENSE_ANON_KEY and FOURREAL_LICENSE_PUBLIC_KEY must not be empty")
 endif()
 set(FOURREAL_LICENSE_DEFINES
-    FOURREAL_ENFORCE_LICENSE=${FOURREAL_ENFORCE_VALUE}
     FOURREAL_LICENSE_API_URL="${FOURREAL_LICENSE_API_URL}"
     FOURREAL_LICENSE_ANON_KEY="${FOURREAL_LICENSE_ANON_KEY}"
     FOURREAL_LICENSE_PUBLIC_KEY="${FOURREAL_LICENSE_PUBLIC_KEY}"
@@ -47,7 +43,7 @@ set(FOURREAL_LICENSE_DEFINES
 
 # --- The plugin ---------------------------------------------------------
 # ONE plugin / standalone that holds the whole guitar library (Source/Library.h): the guitar it sounds like is chosen
-# inside the plugin. Formats: VST3 (loaded by Studio One) and Standalone.
+# inside the plugin. Formats: VST3 and Standalone (plus Audio Unit on macOS).
 # VST2 is intentionally not included: Steinberg no longer licenses the VST2 SDK.
 #
 # The library: one trained model per guitar, models/<CODE>/model.spm. To add a guitar, add its code here and in
@@ -119,11 +115,17 @@ set(FOURREAL_SOURCES
     Source/dsp/SpecEngine.cpp
     Source/dsp/SpecEngine.h)
 
+# Windows: VST3 + Standalone. macOS: VST3 + Audio Unit + Standalone (Studio One, Logic, GarageBand, Ableton, Reaper ...).
+set(FOURREAL_FORMATS VST3 Standalone)
+if(APPLE)
+    list(APPEND FOURREAL_FORMATS AU)
+endif()
+
 juce_add_plugin(FourReal
     COMPANY_NAME                "4Real"
     PLUGIN_MANUFACTURER_CODE    Frea
     PLUGIN_CODE                 FrLb
-    FORMATS                     VST3 Standalone
+    FORMATS                     ${FOURREAL_FORMATS}
     PRODUCT_NAME                "4real-audio"
     IS_SYNTH                    FALSE
     NEEDS_MIDI_INPUT            FALSE

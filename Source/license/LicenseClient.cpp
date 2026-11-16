@@ -45,7 +45,6 @@ LicenseClient::LicenseClient() : juce::Thread ("4real licence")
     state.configured = std::string (FOURREAL_LICENSE_API_URL).size() > 0
                        && license::decodePublicKey (FOURREAL_LICENSE_PUBLIC_KEY, publicKey);
     publicKeyOk = state.configured;
-    state.enforced = LicenseManager::enforced();
 
     loadFile();
     startThread(); // the first renewal runs a few seconds later (see run()), so a host that only scans the plugin never connects

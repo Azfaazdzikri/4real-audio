@@ -17,28 +17,18 @@
 //     computer, expiry, see license/Token.h) and keeps the token renewed.
 //   * A guitar that is not unlocked passes the sound through untouched (PluginProcessor::processSlice) and shows LOCKED in
 //     the library list.
-// FOURREAL_ENFORCE_LICENSE = 0 (the default of test builds) unlocks everything, so beta testers are not locked out.
+// There is no unlocked build: every build enforces the licences.
 namespace fourreal
 {
 class LicenseManager
 {
 public:
-    static constexpr bool enforced() { return FOURREAL_ENFORCE_LICENSE != 0; }
-
     static bool isUnlocked (const LibraryEntry& entry)
     {
-        if constexpr (! enforced())
-        {
-            (void) entry;
-            return true;
-        }
-        else
-        {
-            const auto index = static_cast<std::ptrdiff_t> (&entry - Library::get().entries().data());
-            if (index < 0 || index >= 32)
-                return false;
-            return ((unlockedMask().load (std::memory_order_relaxed) >> index) & 1u) != 0;
-        }
+        const auto index = static_cast<std::ptrdiff_t> (&entry - Library::get().entries().data());
+        if (index < 0 || index >= 32)
+            return false;
+        return ((unlockedMask().load (std::memory_order_relaxed) >> index) & 1u) != 0;
     }
 
     // Bit i = library entry i (order of Library::entries()) is licensed. Written by LicenseClient.

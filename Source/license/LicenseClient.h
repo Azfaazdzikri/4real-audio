@@ -28,7 +28,6 @@ public:
     struct Snapshot
     {
         bool configured = false;  // server URL and public key are present in this build
-        bool enforced = false;    // FOURREAL_ENFORCE_LICENSE
         bool signedIn = false;
         bool busy = false;        // a request is running
         bool browserPending = false; // waiting for the player to approve a sign-in in the browser
