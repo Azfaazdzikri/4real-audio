@@ -60,7 +60,6 @@ AccountPanel::AccountPanel (FourRealAudioProcessor& p) : processor (p), client (
         if (url.isNotEmpty())
             juce::URL (url + "/forgot-password").launchInDefaultBrowser();
     };
-    forgotButton.setVisible (juce::String (FOURREAL_LICENSE_ACCOUNT_URL).isNotEmpty());
 
     client.addChangeListener (this);
     update();
@@ -107,6 +106,7 @@ void AccountPanel::update()
     signInButton.setVisible (! s.signedIn && configured);
     createButton.setVisible (! s.signedIn && configured);
     browserButton.setVisible (! s.signedIn && configured);
+    forgotButton.setVisible (! s.signedIn && configured && juce::String (FOURREAL_LICENSE_ACCOUNT_URL).isNotEmpty());
     browserButton.setButtonText (s.browserPending ? "Cancel browser sign-in" : "Sign in with browser");
     signOutButton.setVisible (s.signedIn);
     refreshButton.setVisible (s.signedIn);
