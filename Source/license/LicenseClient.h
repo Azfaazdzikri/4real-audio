@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <deque>
 #include <functional>
 
@@ -30,6 +31,8 @@ public:
         bool enforced = false;    // FOURREAL_ENFORCE_LICENSE
         bool signedIn = false;
         bool busy = false;        // a request is running
+        bool browserPending = false; // waiting for the player to approve a sign-in in the browser
+        juce::String browserCode; // the code to compare with the one the browser shows, e.g. ABCD-EFGH
         bool licenceValid = false; // a token that passed every check is loaded
         juce::String email;
         juce::String message;     // last result, for the panel
@@ -43,6 +46,9 @@ public:
     // Asynchronous; the outcome appears in snapshot() and a change message is sent (message thread).
     void signIn (const juce::String& email, const juce::String& password);
     void createAccount (const juce::String& email, const juce::String& password);
+    // Opens the account site in the browser; the player signs in there (Google too) and approves the code shown in the panel.
+    void signInWithBrowser();
+    void cancelBrowserSignIn();
     void redeemSerial (const juce::String& serial);
     void refreshNow();
     void signOut();
@@ -66,6 +72,9 @@ private:
     juce::String functionUrl (const char* name) const;
 
     void doSignIn (const juce::String& email, const juce::String& password, bool create);
+    void doBrowserSignIn();
+    // Takes the answer that registers this computer (deviceId, deviceSecret, token); true when the player is now signed in.
+    bool finishSignIn (const juce::var& json);
     void doRedeem (const juce::String& serial);
     void doRefresh (bool silent);
     void doSignOut();
@@ -76,6 +85,8 @@ private:
     void setMessage (const juce::String& text, bool isError);
     void setBusy (bool b);
     void publish();
+
+    std::atomic<bool> cancelBrowser { false };
 
     mutable juce::CriticalSection lock;
     Snapshot state;

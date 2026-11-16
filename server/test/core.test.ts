@@ -9,6 +9,9 @@ import { test } from "node:test";
 import {
   b64Decode,
   b64uEncode,
+  browserLoginApprove,
+  browserLoginPoll,
+  browserLoginStart,
   deviceLogin,
   deviceLogout,
   deviceRefresh,
@@ -16,7 +19,7 @@ import {
   redeemKey,
   sha256Hex,
 } from "../supabase/functions/_shared/core.ts";
-import type { Config, DeviceRow, Store } from "../supabase/functions/_shared/core.ts";
+import type { Config, DeviceRow, LoginRequestRow, Store } from "../supabase/functions/_shared/core.ts";
 
 // --- in-memory store ---------------------------------------------------------------------------------------------
 class MemoryStore implements Store {
@@ -67,6 +70,45 @@ class MemoryStore implements Store {
   async touchDevice(_id: string) {}
   async deleteDevice(id: string) {
     this.devices.delete(id);
+  }
+  // browser sign-in
+  approveSecret: string | null = null; // sha-256 hex
+  loginRequests = new Map<string, LoginRequestRow & { code: string }>();
+  async userForEmail(email: string) {
+    const known = [...this.users.values()].find((u) => u.email === email);
+    if (known) return known;
+    const u = { id: `99999999-9999-9999-9999-${String(this.nextId++).padStart(12, "0")}`, email };
+    this.users.set("jwt-" + email, u);
+    this.entitlements.set(u.id, new Set());
+    return u;
+  }
+  async getApproveSecretHash() {
+    return this.approveSecret;
+  }
+  async createLoginRequest(r: { code: string; secretHash: string; machineId: string; machineName: string; expiresAt: number }) {
+    if ([...this.loginRequests.values()].some((x) => x.code === r.code)) return null;
+    const id = `aaaaaaaa-0000-0000-0000-${String(this.nextId++).padStart(12, "0")}`;
+    this.loginRequests.set(id, { id, code: r.code, secretHash: r.secretHash, machineId: r.machineId, machineName: r.machineName, status: "pending", userId: null, expiresAt: r.expiresAt });
+    return { id };
+  }
+  async getLoginRequest(id: string) {
+    return this.loginRequests.get(id) ?? null;
+  }
+  async approveLoginRequest(code: string, userId: string, now: number) {
+    const r = [...this.loginRequests.values()].find((x) => x.code === code && x.status === "pending" && x.expiresAt > now);
+    if (!r) return null;
+    r.status = "approved";
+    r.userId = userId;
+    return { machineName: r.machineName };
+  }
+  async consumeLoginRequest(id: string, now: number) {
+    const r = this.loginRequests.get(id);
+    if (!r || r.status !== "approved" || r.expiresAt <= now) return false;
+    r.status = "consumed";
+    return true;
+  }
+  async purgeLoginRequests(now: number) {
+    for (const [id, r] of this.loginRequests) if (r.expiresAt < now - 3600) this.loginRequests.delete(id);
   }
   async redeemSerial(userId: string, hash: string) {
     const s = this.serials.get(hash);
@@ -306,4 +348,107 @@ test("account server problems give clear errors and register nothing", async () 
     assert.equal(r.body.error, error);
   }
   assert.equal(ctx.store.devices.size, 0);
+});
+
+// --- browser sign-in -----------------------------------------------------------------------------------------------
+const APPROVE_SECRET = "site-shared-secret";
+
+async function startBrowserLogin(ctx: Awaited<ReturnType<typeof setup>>, machineId = MACHINE_A) {
+  ctx.store.approveSecret = await sha256Hex(APPROVE_SECRET);
+  const r = await browserLoginStart(ctx.store, ctx.cfg, { machineId, machineName: "Studio PC" });
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  return r.body as { requestId: string; pollSecret: string; code: string; expiresIn: number; authorizeUrl: string };
+}
+
+test("browser sign-in: start, approve on the account site, then the plugin receives its device and token", async () => {
+  const ctx = await setup({ accountUrl: "https://shop.example/" });
+  ctx.store.entitlements.get("11111111-1111-1111-1111-111111111111")!.add("LP");
+  const start = await startBrowserLogin(ctx);
+  assert.match(start.code, /^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+  assert.equal(start.authorizeUrl, `https://shop.example/plugin/authorize?code=${start.code}`);
+
+  const waiting = await browserLoginPoll(ctx.store, ctx.cfg, { requestId: start.requestId, pollSecret: start.pollSecret });
+  assert.deepEqual(waiting.body, { status: "pending" });
+
+  // the code is typed in any case, with spaces
+  const ok = await browserLoginApprove(ctx.store, ctx.cfg, APPROVE_SECRET, { code: start.code.toLowerCase().replace("-", " "), email: "Alice@Example.com" });
+  assert.equal(ok.status, 200, JSON.stringify(ok.body));
+  assert.equal(ok.body.machineName, "Studio PC");
+
+  const done = await browserLoginPoll(ctx.store, ctx.cfg, { requestId: start.requestId, pollSecret: start.pollSecret });
+  assert.equal(done.status, 200, JSON.stringify(done.body));
+  assert.equal(done.body.status, "approved");
+  assert.deepEqual(done.body.guitars, ["LP"]);
+  const t = decodeToken(done.body.token as string).payload;
+  assert.equal(t.email, "alice@example.com");
+  assert.equal(t.mid, MACHINE_A);
+  assert.equal(ctx.store.devices.size, 1);
+
+  // one time only
+  const again = await browserLoginPoll(ctx.store, ctx.cfg, { requestId: start.requestId, pollSecret: start.pollSecret });
+  assert.equal(again.status, 410);
+  assert.equal(ctx.store.devices.size, 1);
+});
+
+test("browser sign-in: a first-time email gets a licence account with no guitars", async () => {
+  const ctx = await setup();
+  const start = await startBrowserLogin(ctx);
+  await browserLoginApprove(ctx.store, ctx.cfg, APPROVE_SECRET, { code: start.code, email: "newcomer@example.com" });
+  const done = await browserLoginPoll(ctx.store, ctx.cfg, { requestId: start.requestId, pollSecret: start.pollSecret });
+  assert.equal(done.status, 200);
+  assert.deepEqual(done.body.guitars, []);
+  assert.equal(decodeToken(done.body.token as string).payload.email, "newcomer@example.com");
+});
+
+test("browser sign-in: approving needs the shared secret, a real code, and is not repeatable", async () => {
+  const ctx = await setup();
+  const notSetUp = await browserLoginApprove(ctx.store, ctx.cfg, APPROVE_SECRET, { code: "ABCD-EFGH", email: "alice@example.com" });
+  assert.equal(notSetUp.status, 503);
+
+  const start = await startBrowserLogin(ctx);
+  const body = { code: start.code, email: "alice@example.com" };
+  assert.equal((await browserLoginApprove(ctx.store, ctx.cfg, "wrong", body)).status, 403);
+  assert.equal((await browserLoginApprove(ctx.store, ctx.cfg, "", body)).status, 403);
+  assert.equal((await browserLoginApprove(ctx.store, ctx.cfg, APPROVE_SECRET, { code: "ZZZZ-ZZZZ", email: "alice@example.com" })).status, 404);
+  assert.equal((await browserLoginApprove(ctx.store, ctx.cfg, APPROVE_SECRET, { code: "12", email: "alice@example.com" })).status, 404);
+  assert.equal((await browserLoginApprove(ctx.store, ctx.cfg, APPROVE_SECRET, { code: start.code })).status, 400);
+  assert.equal((await browserLoginApprove(ctx.store, ctx.cfg, APPROVE_SECRET, body)).status, 200);
+  // a second person cannot take over a request that is already approved
+  assert.equal((await browserLoginApprove(ctx.store, ctx.cfg, APPROVE_SECRET, { code: start.code, email: "bob@example.com" })).status, 404);
+  const done = await browserLoginPoll(ctx.store, ctx.cfg, { requestId: start.requestId, pollSecret: start.pollSecret });
+  assert.equal(decodeToken(done.body.token as string).payload.email, "alice@example.com");
+});
+
+test("browser sign-in: only the plugin that started the request can collect it, and it expires", async () => {
+  const ctx = await setup();
+  const start = await startBrowserLogin(ctx);
+  await browserLoginApprove(ctx.store, ctx.cfg, APPROVE_SECRET, { code: start.code, email: "alice@example.com" });
+  const stolen = await browserLoginPoll(ctx.store, ctx.cfg, { requestId: start.requestId, pollSecret: "x".repeat(43) });
+  assert.equal(stolen.status, 403);
+  assert.equal((await browserLoginPoll(ctx.store, ctx.cfg, { requestId: "00000000-0000-0000-0000-000000000000", pollSecret: start.pollSecret })).status, 403);
+  assert.equal((await browserLoginPoll(ctx.store, ctx.cfg, { requestId: start.requestId })).status, 400);
+  assert.equal(ctx.store.devices.size, 0);
+
+  const later = { ...ctx.cfg, now: () => NOW + start.expiresIn + 1 };
+  assert.equal((await browserLoginPoll(ctx.store, later, { requestId: start.requestId, pollSecret: start.pollSecret })).status, 410);
+  const expiredApprove = await startBrowserLogin(ctx, MACHINE_B);
+  assert.equal((await browserLoginApprove(ctx.store, later, APPROVE_SECRET, { code: expiredApprove.code, email: "alice@example.com" })).status, 404);
+});
+
+test("browser sign-in: the computer limit applies and keeps the request for a retry", async () => {
+  const ctx = await setup({ maxDevices: 1 });
+  await login(ctx, MACHINE_A);
+  const start = await startBrowserLogin(ctx, MACHINE_B);
+  await browserLoginApprove(ctx.store, ctx.cfg, APPROVE_SECRET, { code: start.code, email: "alice@example.com" });
+  const r = await browserLoginPoll(ctx.store, ctx.cfg, { requestId: start.requestId, pollSecret: start.pollSecret });
+  assert.equal(r.status, 409);
+  assert.equal(r.body.error, "device_limit");
+  assert.equal(ctx.store.devices.size, 1);
+  assert.equal(ctx.store.loginRequests.get(start.requestId)!.status, "approved"); // not burned
+});
+
+test("browser sign-in: start validates the machine id", async () => {
+  const ctx = await setup();
+  assert.equal((await browserLoginStart(ctx.store, ctx.cfg, {})).status, 400);
+  assert.equal((await browserLoginStart(ctx.store, ctx.cfg, { machineId: "short" })).status, 400);
 });

@@ -13,3 +13,7 @@ verify_jwt = false
 
 [functions.redeem-key]
 verify_jwt = false
+
+# routes start / poll / approve; approve is called by the account site with a shared secret (header x-approve-secret)
+[functions.browser-login]
+verify_jwt = false

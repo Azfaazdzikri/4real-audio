@@ -117,6 +117,18 @@ void LicenseClient::createAccount (const juce::String& email, const juce::String
     post ([this, email, password] { doSignIn (email, password, true); });
 }
 
+void LicenseClient::signInWithBrowser()
+{
+    cancelBrowser = false;
+    post ([this] { doBrowserSignIn(); });
+}
+
+void LicenseClient::cancelBrowserSignIn()
+{
+    cancelBrowser = true;
+    notify(); // wakes the worker from its wait between two polls
+}
+
 void LicenseClient::redeemSerial (const juce::String& serial)
 {
     post ([this, serial] { doRedeem (serial); });
@@ -372,20 +384,30 @@ void LicenseClient::doSignIn (const juce::String& email, const juce::String& pas
     const auto reg = postJson (functionUrl ("device-login"),
                                makeObject ({ { "email", email.trim() }, { "password", password },
                                              { "machineId", machineId() }, { "machineName", machineName() } }), {});
-    const auto token = reg.json.getProperty ("token", {}).toString();
-    const auto newId = reg.json.getProperty ("deviceId", {}).toString();
-    const auto newSecret = reg.json.getProperty ("deviceSecret", {}).toString();
-    if (reg.status != 200 || token.isEmpty() || newId.isEmpty() || newSecret.isEmpty())
+    if (reg.status != 200)
     {
         setMessage (reg.errorText(), true);
         return;
+    }
+    finishSignIn (reg.json);
+}
+
+bool LicenseClient::finishSignIn (const juce::var& json)
+{
+    const auto token = json.getProperty ("token", {}).toString();
+    const auto newId = json.getProperty ("deviceId", {}).toString();
+    const auto newSecret = json.getProperty ("deviceSecret", {}).toString();
+    if (token.isEmpty() || newId.isEmpty() || newSecret.isEmpty())
+    {
+        setMessage ("The licence server sent an incomplete answer. Try again.", true);
+        return false;
     }
 
     juce::String error;
     if (! adoptToken (token, error))
     {
         setMessage (error, true);
-        return;
+        return false;
     }
     {
         const juce::ScopedLock sl (lock);
@@ -396,6 +418,83 @@ void LicenseClient::doSignIn (const juce::String& email, const juce::String& pas
     }
     saveFile();
     setMessage ("Signed in.", false);
+    return true;
+}
+
+void LicenseClient::doBrowserSignIn()
+{
+    if (! publicKeyOk)
+    {
+        setMessage ("This build has no licence server configured.", true);
+        return;
+    }
+    setBusy (true);
+    const auto start = postJson (functionUrl ("browser-login/start"),
+                                 makeObject ({ { "machineId", machineId() }, { "machineName", machineName() } }), {});
+    const auto requestId = start.json.getProperty ("requestId", {}).toString();
+    const auto pollSecret = start.json.getProperty ("pollSecret", {}).toString();
+    const auto code = start.json.getProperty ("code", {}).toString();
+    const auto url = start.json.getProperty ("authorizeUrl", {}).toString();
+    if (start.status != 200 || requestId.isEmpty() || pollSecret.isEmpty() || code.isEmpty() || url.isEmpty())
+    {
+        setBusy (false);
+        setMessage (start.errorText(), true);
+        return;
+    }
+    const int64_t lifetime = juce::jlimit<int64_t> (60, 900, static_cast<int64_t> (start.json.getProperty ("expiresIn", 600)));
+
+    {
+        const juce::ScopedLock sl (lock);
+        state.busy = false;
+        state.browserPending = true;
+        state.browserCode = code;
+    }
+    setMessage ("Your browser opens the 3ffect.my.id page. Sign in there (Google works too) and press Allow. "
+                "The code on that page must be " + code + ".", false);
+    juce::MessageManager::callAsync ([url] { juce::URL (url).launchInDefaultBrowser(); });
+
+    struct Done
+    {
+        LicenseClient& c;
+        ~Done()
+        {
+            {
+                const juce::ScopedLock sl (c.lock);
+                c.state.browserPending = false;
+                c.state.browserCode = {};
+            }
+            c.publish();
+        }
+    } done { *this };
+
+    const int64_t deadline = unixNow() + lifetime;
+    while (unixNow() < deadline)
+    {
+        wait (2000);
+        if (threadShouldExit())
+            return;
+        if (cancelBrowser)
+        {
+            setMessage ("Sign-in cancelled.", false);
+            return;
+        }
+
+        const auto r = postJson (functionUrl ("browser-login/poll"),
+                                 makeObject ({ { "requestId", requestId }, { "pollSecret", pollSecret } }), {});
+        if (r.status == 0 || r.status >= 500)
+            continue; // a network hiccup or a restarting server: keep waiting
+        if (r.status != 200)
+        {
+            setMessage (r.errorText(), true);
+            return;
+        }
+        if (r.json.getProperty ("status", {}).toString() == "approved")
+        {
+            finishSignIn (r.json);
+            return;
+        }
+    }
+    setMessage ("The sign-in request expired. Press \"Sign in with browser\" to start again.", true);
 }
 
 void LicenseClient::doRedeem (const juce::String& serialText)

@@ -12,6 +12,20 @@ export interface Config {
   tokenDays: number;
   /** Unix time source, replaceable in tests. */
   now?: () => number;
+  /** Site where the player approves a browser sign-in, no trailing slash (default https://3ffect.my.id). */
+  accountUrl?: string;
+}
+
+/** A sign-in started by the plugin that the player approves in the browser (device-code flow). */
+export interface LoginRequestRow {
+  id: string;
+  secretHash: string;
+  machineId: string;
+  machineName: string;
+  status: "pending" | "approved" | "consumed";
+  userId: string | null;
+  /** Unix seconds. */
+  expiresAt: number;
 }
 
 export interface DeviceRow {
@@ -40,6 +54,21 @@ export interface Store {
   deleteDevice(id: string): Promise<void>;
   /** Atomic: marks the serial as used and adds the guitars to the account. */
   redeemSerial(userId: string, serialHash: string): Promise<{ ok: true; codes: string[] } | { ok: false; reason: "invalid" | "used" }>;
+
+  // --- browser sign-in -----------------------------------------------------------------------------------------------
+  /** The licence account of an email address (made on first use). The email has already been verified by the account site. */
+  userForEmail(email: string): Promise<{ id: string; email: string }>;
+  /** Hash (sha-256 hex) of the secret that the account site presents when it approves a request, or null when it is not set up. */
+  getApproveSecretHash(): Promise<string | null>;
+  /** Stores a pending request; false when the code is already taken. */
+  createLoginRequest(r: { code: string; secretHash: string; machineId: string; machineName: string; expiresAt: number }): Promise<{ id: string } | null>;
+  getLoginRequest(id: string): Promise<LoginRequestRow | null>;
+  /** pending -> approved for a code that has not expired. Returns the computer name, or null when there is no such request. */
+  approveLoginRequest(code: string, userId: string, now: number): Promise<{ machineName: string } | null>;
+  /** approved -> consumed, once. false when somebody else got there first. */
+  consumeLoginRequest(id: string, now: number): Promise<boolean>;
+  /** Deletes requests that have expired. */
+  purgeLoginRequests(now: number): Promise<void>;
 }
 
 export interface Result {
@@ -216,4 +245,97 @@ export async function redeemKey(store: Store, cfg: Config, body: Record<string, 
   }
   const { token, guitars } = await tokenFor(store, cfg, device, await store.getUserEmail(device.userId));
   return { status: 200, body: { token, guitars, added: redeemed.codes } };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Browser sign-in ("device code" flow). The plugin starts a request and shows its code, the player opens the account site,
+// signs in there (any way, Google included) and approves the code, and the plugin, which keeps asking, receives its device.
+//   plugin  -> browser-login/start -> { requestId, pollSecret, code, authorizeUrl }
+//   browser -> account site          -> browser-login/approve (server to server, with the shared secret)
+//   plugin  -> browser-login/poll  -> { status: "pending" } ... { status: "approved", deviceId, deviceSecret, token, guitars }
+
+const REQUEST_SECONDS = 600;
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // 32 letters and digits, no 0/O/1/I; 256 % 32 == 0, so no modulo bias
+
+const nowOf = (cfg: Config) => (cfg.now ?? (() => Math.floor(Date.now() / 1000)))();
+
+function makeCode(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  const chars = [...bytes].map((b) => CODE_ALPHABET[b % 32]).join("");
+  return chars.slice(0, 4) + "-" + chars.slice(4);
+}
+
+/** "abcd efgh" -> "ABCD-EFGH"; null when it cannot be a code. */
+export function normalizeCode(text: string): string | null {
+  const s = text.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return s.length === 8 ? s.slice(0, 4) + "-" + s.slice(4) : null;
+}
+
+/** POST browser-login/start: { machineId, machineName } */
+export async function browserLoginStart(store: Store, cfg: Config, body: Record<string, unknown>): Promise<Result> {
+  const { machineId, machineName } = body;
+  if (!isText(machineId, 8, 128)) return fail(400, "bad_request", "Missing or invalid machine id.");
+  const name = typeof machineName === "string" ? machineName.slice(0, 120) : "";
+  const now = nowOf(cfg);
+  await store.purgeLoginRequests(now);
+
+  const pollSecret = randomSecret();
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = makeCode();
+    const created = await store.createLoginRequest({ code, secretHash: await sha256Hex(pollSecret), machineId, machineName: name, expiresAt: now + REQUEST_SECONDS });
+    if (created) {
+      const site = (cfg.accountUrl ?? "https://3ffect.my.id").replace(/\/+$/, "");
+      return {
+        status: 200,
+        body: { requestId: created.id, pollSecret, code, expiresIn: REQUEST_SECONDS, authorizeUrl: `${site}/plugin/authorize?code=${code}` },
+      };
+    }
+  }
+  throw new Error("could not find a free login code");
+}
+
+/** POST browser-login/poll: { requestId, pollSecret } */
+export async function browserLoginPoll(store: Store, cfg: Config, body: Record<string, unknown>): Promise<Result> {
+  const { requestId, pollSecret } = body;
+  if (!isText(requestId, 8, 64) || !isText(pollSecret, 16, 200)) return fail(400, "bad_request", "Missing or invalid fields.");
+  const row = await store.getLoginRequest(requestId);
+  // the same answer for "no such request" and "wrong secret"
+  if (!row || !timingSafeEqual(row.secretHash, await sha256Hex(pollSecret))) {
+    return fail(403, "login_request_invalid", "This sign-in request is not valid. Start again.");
+  }
+  const now = nowOf(cfg);
+  if (row.status === "consumed" || row.expiresAt <= now) return fail(410, "login_expired", "This sign-in request has expired. Start again.");
+  if (row.status === "pending" || !row.userId) return { status: 200, body: { status: "pending" } };
+
+  const userId = row.userId;
+  const existing = await store.findDevice(userId, row.machineId);
+  if (!existing && (await store.countDevices(userId)) >= cfg.maxDevices) {
+    return fail(409, "device_limit", `This account is already signed in on ${cfg.maxDevices} computers. Sign out on one of them first.`);
+  }
+  if (!(await store.consumeLoginRequest(row.id, now))) return fail(410, "login_expired", "This sign-in request has already been used. Start again.");
+
+  const secret = randomSecret();
+  const device = await store.upsertDevice({ userId, machineId: row.machineId, machineName: row.machineName, secretHash: await sha256Hex(secret) });
+  const { token, guitars } = await tokenFor(store, cfg, device, await store.getUserEmail(userId));
+  return { status: 200, body: { status: "approved", deviceId: device.id, deviceSecret: secret, token, guitars } };
+}
+
+/**
+ * POST browser-login/approve: { code, email }, header x-approve-secret. Called by the account site after the player signed in
+ * there and pressed "allow". The shared secret proves the call comes from the account site, so `email` can be trusted.
+ */
+export async function browserLoginApprove(store: Store, cfg: Config, secret: string, body: Record<string, unknown>): Promise<Result> {
+  const expected = await store.getApproveSecretHash();
+  if (!expected) return fail(503, "not_configured", "Browser sign-in is not set up on this server.");
+  if (!secret || !timingSafeEqual(expected, await sha256Hex(secret))) return fail(403, "forbidden", "Not allowed.");
+
+  const { code, email } = body;
+  if (typeof code !== "string" || !isText(email, 3, 254)) return fail(400, "bad_request", "Missing or invalid fields.");
+  const clean = normalizeCode(code);
+  if (!clean) return fail(404, "code_invalid", "This code is not valid or has expired.");
+
+  const user = await store.userForEmail(email.trim().toLowerCase());
+  const approved = await store.approveLoginRequest(clean, user.id, nowOf(cfg));
+  if (!approved) return fail(404, "code_invalid", "This code is not valid or has expired.");
+  return { status: 200, body: { ok: true, machineName: approved.machineName } };
 }

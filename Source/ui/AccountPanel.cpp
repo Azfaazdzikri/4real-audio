@@ -4,7 +4,7 @@ namespace fourreal::ui
 {
 namespace
 {
-constexpr int kCardW = 560, kCardH = 500;
+constexpr int kCardW = 560, kCardH = 540;
 const juce::Colour cardColour (0xff1d2027), lineColour (0xff2f3440), okColour (0xff58c47c), lockedColour (0xffe0a458),
     errorColour (0xffff7a7a);
 }
@@ -36,11 +36,18 @@ AccountPanel::AccountPanel (FourRealAudioProcessor& p) : processor (p), client (
 
     for (juce::Component* c : std::initializer_list<juce::Component*> {
              &title, &info, &status, &serialLabel, &email, &password, &serial, &signInButton, &createButton, &signOutButton,
-             &refreshButton, &redeemButton, &closeButton, &forgotButton })
+             &refreshButton, &redeemButton, &closeButton, &forgotButton, &browserButton })
         addAndMakeVisible (c);
 
     signInButton.onClick = [this] { client.signIn (email.getText(), password.getText()); };
     createButton.onClick = [this] { client.createAccount (email.getText(), password.getText()); };
+    browserButton.onClick = [this]
+    {
+        if (client.snapshot().browserPending)
+            client.cancelBrowserSignIn();
+        else
+            client.signInWithBrowser();
+    };
     password.onReturnKey = [this] { client.signIn (email.getText(), password.getText()); };
     signOutButton.onClick = [this] { client.signOut(); };
     refreshButton.onClick = [this] { client.refreshNow(); };
@@ -99,13 +106,18 @@ void AccountPanel::update()
         c->setVisible (! s.signedIn && configured);
     signInButton.setVisible (! s.signedIn && configured);
     createButton.setVisible (! s.signedIn && configured);
+    browserButton.setVisible (! s.signedIn && configured);
+    browserButton.setButtonText (s.browserPending ? "Cancel browser sign-in" : "Sign in with browser");
     signOutButton.setVisible (s.signedIn);
     refreshButton.setVisible (s.signedIn);
     serialLabel.setVisible (s.signedIn);
     serial.setVisible (s.signedIn);
     redeemButton.setVisible (s.signedIn);
     for (juce::Component* c : std::initializer_list<juce::Component*> { &signInButton, &createButton, &signOutButton, &refreshButton, &redeemButton })
-        c->setEnabled (! s.busy);
+        c->setEnabled (! s.busy && ! s.browserPending);
+    browserButton.setEnabled (! s.busy); // while it waits for the browser this button is the "cancel" button
+    for (auto* c : { &email, &password })
+        c->setEnabled (! s.browserPending);
 
     juce::String line;
     if (! configured)
@@ -144,9 +156,12 @@ void AccountPanel::resized()
         auto row = card.removeFromTop (30);
         signInButton.setBounds (row.removeFromLeft (120));
         row.removeFromLeft (8);
-        createButton.setBounds (row.removeFromLeft (140));
-        row.removeFromLeft (8);
-        forgotButton.setBounds (row.removeFromLeft (140));
+        browserButton.setBounds (row.removeFromLeft (200));
+        card.removeFromTop (8);
+        auto row2 = card.removeFromTop (30);
+        createButton.setBounds (row2.removeFromLeft (140));
+        row2.removeFromLeft (8);
+        forgotButton.setBounds (row2.removeFromLeft (150));
         card.removeFromTop (10);
     }
     else

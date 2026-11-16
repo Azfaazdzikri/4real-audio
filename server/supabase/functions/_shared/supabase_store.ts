@@ -1,6 +1,6 @@
 // Store backed by Supabase (service role). Used by the Edge Functions only; the tests use an in-memory store.
 import { createClient } from "npm:@supabase/supabase-js@2";
-import type { Config, DeviceRow, Result, Store } from "./core.ts";
+import type { Config, DeviceRow, LoginRequestRow, Result, Store } from "./core.ts";
 
 type Row = { id: string; user_id: string; machine_id: string; machine_name: string | null; secret_hash: string };
 const toDevice = (r: Row): DeviceRow => ({
@@ -18,6 +18,7 @@ export function configFromEnv(): Config {
     signingKeyPkcs8: key,
     maxDevices: Number(Deno.env.get("LICENSE_MAX_DEVICES") ?? "3"),
     tokenDays: Number(Deno.env.get("LICENSE_TOKEN_DAYS") ?? "30"),
+    accountUrl: Deno.env.get("ACCOUNT_SITE_URL") ?? "https://3ffect.my.id",
   };
 }
 
@@ -29,6 +30,26 @@ export function supabaseStore(): Store {
   const must = <T>(res: { data: T | null; error: { message: string } | null }): T => {
     if (res.error) throw new Error(res.error.message);
     return res.data as T;
+  };
+
+  /** The licence account (a Supabase Auth user) of a verified email: found, or made on first use. */
+  const shadowUser = async (canonical: string): Promise<{ id: string; email: string }> => {
+    const lookup = async (): Promise<string | null> => {
+      const { data, error } = await db.rpc("licence_user_id_for_email", { p_email: canonical });
+      if (error) throw new Error(error.message);
+      return (data as string | null) ?? null;
+    };
+    let id = await lookup();
+    if (!id) {
+      const created = await db.auth.admin.createUser({ email: canonical, email_confirm: true, password: crypto.randomUUID() + crypto.randomUUID() });
+      if (created.error || !created.data.user) {
+        id = await lookup(); // lost a race with a parallel sign-in
+        if (!id) throw new Error(created.error?.message ?? "could not create the licence account");
+      } else {
+        id = created.data.user.id;
+      }
+    }
+    return { id, email: canonical };
   };
 
   return {
@@ -65,22 +86,7 @@ export function supabaseStore(): Store {
       const canonical = (typeof info?.email === "string" ? info.email : email).trim().toLowerCase();
       if (!canonical) return { ok: false, reason: "unavailable" };
 
-      const lookup = async (): Promise<string | null> => {
-        const { data, error } = await db.rpc("licence_user_id_for_email", { p_email: canonical });
-        if (error) throw new Error(error.message);
-        return (data as string | null) ?? null;
-      };
-      let id = await lookup();
-      if (!id) {
-        const created = await db.auth.admin.createUser({ email: canonical, email_confirm: true, password: crypto.randomUUID() + crypto.randomUUID() });
-        if (created.error || !created.data.user) {
-          id = await lookup(); // lost a race with a parallel sign-in
-          if (!id) throw new Error(created.error?.message ?? "could not create the licence account");
-        } else {
-          id = created.data.user.id;
-        }
-      }
-      return { ok: true, user: { id, email: canonical } };
+      return { ok: true, user: await shadowUser(canonical) };
     },
     async getUserEmail(userId) {
       const { data } = await db.auth.admin.getUserById(userId);
@@ -123,6 +129,68 @@ export function supabaseStore(): Store {
     },
     async deleteDevice(id) {
       await db.from("devices").delete().eq("id", id);
+    },
+    async userForEmail(email) {
+      return await shadowUser(email.trim().toLowerCase());
+    },
+    async getApproveSecretHash() {
+      const row = must(await db.from("licence_settings").select("value").eq("key", "approve_secret_sha256").maybeSingle());
+      return (row as { value: string } | null)?.value ?? null;
+    },
+    async createLoginRequest(r) {
+      const { data, error } = await db
+        .from("login_requests")
+        .insert({ code: r.code, secret_hash: r.secretHash, machine_id: r.machineId, machine_name: r.machineName, expires_at: new Date(r.expiresAt * 1000).toISOString() })
+        .select("id")
+        .single();
+      if (error) {
+        if (error.code === "23505") return null; // code already taken
+        throw new Error(error.message);
+      }
+      return { id: (data as { id: string }).id };
+    },
+    async getLoginRequest(id) {
+      if (!/^[0-9a-f-]{36}$/i.test(id)) return null;
+      const row = must(await db.from("login_requests").select("*").eq("id", id).maybeSingle()) as
+        | { id: string; secret_hash: string; machine_id: string; machine_name: string | null; status: LoginRequestRow["status"]; user_id: string | null; expires_at: string }
+        | null;
+      if (!row) return null;
+      return {
+        id: row.id,
+        secretHash: row.secret_hash,
+        machineId: row.machine_id,
+        machineName: row.machine_name ?? "",
+        status: row.status,
+        userId: row.user_id,
+        expiresAt: Math.floor(new Date(row.expires_at).getTime() / 1000),
+      };
+    },
+    async approveLoginRequest(code, userId, now) {
+      const { data, error } = await db
+        .from("login_requests")
+        .update({ status: "approved", user_id: userId })
+        .eq("code", code)
+        .eq("status", "pending")
+        .gt("expires_at", new Date(now * 1000).toISOString())
+        .select("machine_name")
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return data ? { machineName: (data as { machine_name: string | null }).machine_name ?? "" } : null;
+    },
+    async consumeLoginRequest(id, now) {
+      const { data, error } = await db
+        .from("login_requests")
+        .update({ status: "consumed" })
+        .eq("id", id)
+        .eq("status", "approved")
+        .gt("expires_at", new Date(now * 1000).toISOString())
+        .select("id")
+        .maybeSingle();
+      if (error) throw new Error(error.message);
+      return !!data;
+    },
+    async purgeLoginRequests(now) {
+      await db.from("login_requests").delete().lt("expires_at", new Date((now - 3600) * 1000).toISOString());
     },
     async redeemSerial(userId, serialHash) {
       const { data, error } = await db.rpc("redeem_serial", { p_serial_hash: serialHash, p_user_id: userId });

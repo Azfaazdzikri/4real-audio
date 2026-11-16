@@ -35,7 +35,8 @@ private:
     juce::Label title, info, status, serialLabel;
     juce::TextEditor email, password, serial;
     juce::TextButton signInButton { "Sign in" }, createButton { "Create account" }, signOutButton { "Sign out" },
-        refreshButton { "Refresh" }, redeemButton { "Activate serial" }, closeButton { "Close" }, forgotButton { "Forgot password" };
+        refreshButton { "Refresh" }, redeemButton { "Activate serial" }, closeButton { "Close" }, forgotButton { "Forgot password" },
+        browserButton { "Sign in with browser" };
 
     juce::Rectangle<int> rowsArea;
     int highlighted = -1;
