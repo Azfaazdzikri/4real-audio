@@ -54,6 +54,8 @@ cat >"$WORK/distribution.xml" <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
   <title>4real-audio $VERSION</title>
+  <background file="pkg_background.png" alignment="bottomleft" scaling="none" mime-type="image/png"/>
+  <background-darkAqua file="pkg_background.png" alignment="bottomleft" scaling="none" mime-type="image/png"/>
   <options customize="allow" require-scripts="false" hostArchitectures="arm64,x86_64"/>
   <domains enable_anywhere="false" enable_localSystem="true"/>
   <allowed-os-versions><os-version min="11.0"/></allowed-os-versions>
@@ -77,5 +79,7 @@ cat >"$WORK/distribution.xml" <<XML
 </installer-gui-script>
 XML
 
-productbuild --distribution "$WORK/distribution.xml" --package-path "$WORK" "$OUT/4real-audio-$VERSION-macOS.pkg"
+mkdir -p "$WORK/resources"
+cp "$(dirname "$0")/pkg_background.png" "$WORK/resources/"
+productbuild --distribution "$WORK/distribution.xml" --resources "$WORK/resources" --package-path "$WORK" "$OUT/4real-audio-$VERSION-macOS.pkg"
 echo "Built $OUT/4real-audio-$VERSION-macOS.pkg"

@@ -1,4 +1,5 @@
 #include "PluginEditor.h"
+#include "ui/Photos.h"
 #include <algorithm>
 
 namespace
@@ -230,12 +231,27 @@ void FourRealAudioEditor::paint (juce::Graphics& g)
 {
     g.fillAll (backgroundColour);
 
-    g.setColour (juce::Colours::white);
-    g.setFont (juce::Font (juce::FontOptions (26.0f, juce::Font::bold)));
-    g.drawText ("4REAL AUDIO", 24, 8, 220, 32, juce::Justification::centredLeft);
+    // the logo (Source/ui/brand/logo_header.png, drawn from a 4x picture so it stays sharp on retina screens)
+    int nameX = 24;
+    const auto& logo = fourreal::ui::embeddedImage ("logo_header.png");
+    if (logo.isValid())
+    {
+        const float h = 44.0f, w = h * static_cast<float> (logo.getWidth()) / static_cast<float> (logo.getHeight());
+        g.setImageResamplingQuality (juce::Graphics::highResamplingQuality);
+        g.drawImage (logo, juce::Rectangle<float> (24.0f, 2.0f, w, h), juce::RectanglePlacement::centred);
+        nameX = 24 + juce::roundToInt (w) + 16;
+    }
+    else
+    {
+        g.setColour (juce::Colours::white);
+        g.setFont (juce::Font (juce::FontOptions (26.0f, juce::Font::bold)));
+        g.drawText ("4REAL AUDIO", 24, 8, 220, 32, juce::Justification::centredLeft);
+        nameX = 230;
+    }
     g.setColour (accent);
+    g.setFont (juce::Font (juce::FontOptions (26.0f, juce::Font::bold)));
     g.drawText (juce::String (FourRealAudioProcessor::library().at (shownGuitar).displayName()).toUpperCase(),
-                230, 8, getWidth() - 254 - 190, 32, juce::Justification::centredLeft);
+                nameX, 8, getWidth() - nameX - 190 - 24, 32, juce::Justification::centredLeft);
 
     auto drawMeter = [&g, this] (juce::Rectangle<int> r, float level, const juce::String& name)
     {

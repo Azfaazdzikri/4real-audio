@@ -70,7 +70,8 @@ juce_add_binary_data(FourReal_Data
 file(GLOB FOURREAL_PHOTOS CONFIGURE_DEPENDS
     "${CMAKE_CURRENT_SOURCE_DIR}/Source/ui/photos/*.jpg"
     "${CMAKE_CURRENT_SOURCE_DIR}/Source/ui/art/*.jpg"
-    "${CMAKE_CURRENT_SOURCE_DIR}/Source/ui/art/*.png")
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/ui/art/*.png"
+    "${CMAKE_CURRENT_SOURCE_DIR}/Source/ui/brand/*.png")   # the logo (tools/make_brand_assets.py)
 juce_add_binary_data(FourReal_Photos
     HEADER_NAME PhotoData.h
     NAMESPACE   PhotoData
@@ -127,6 +128,8 @@ juce_add_plugin(FourReal
     PLUGIN_CODE                 FrLb
     FORMATS                     ${FOURREAL_FORMATS}
     PRODUCT_NAME                "4real-audio"
+    ICON_BIG                    "${CMAKE_CURRENT_SOURCE_DIR}/assets/brand/icon_1024.png"   # Standalone .exe / .app icon
+    ICON_SMALL                  "${CMAKE_CURRENT_SOURCE_DIR}/assets/brand/icon_256.png"
     IS_SYNTH                    FALSE
     NEEDS_MIDI_INPUT            FALSE
     NEEDS_MIDI_OUTPUT           FALSE

@@ -34,7 +34,11 @@ ArchitecturesInstallIn64BitMode=x64compatible
 PrivilegesRequired=admin
 WizardStyle=modern
 UninstallDisplayName=4real-audio
-UninstallDisplayIcon={app}\4real-audio.exe
+UninstallDisplayIcon={uninstallexe}
+SetupIconFile=4real.ico
+WizardImageFile=wizard_large_164x314.bmp,wizard_large_328x628.bmp
+WizardSmallImageFile=wizard_small_55.bmp,wizard_small_110.bmp
+WizardImageBackColor=$1C1715
 
 [Types]
 Name: "full"; Description: "Full installation (plugin and standalone app)"
