@@ -56,6 +56,23 @@ def rounded_icon(logo: Image.Image, size: int) -> Image.Image:
     return canvas.resize((size, size), Image.LANCZOS)
 
 
+def tight_icon(logo: Image.Image, size: int) -> Image.Image:
+    """Windows icon: the dark square fills the whole canvas and the logo fills the square, so the headstock and the
+    gold letters stay as large as possible at 16-48 px (where the Explorer list shows it)."""
+    big = size * 8
+    canvas = Image.new("RGBA", (big, big), (0, 0, 0, 0))
+    mask = Image.new("L", (big, big), 0)
+    ImageDraw.Draw(mask).rounded_rectangle((0, 0, big - 1, big - 1), radius=round(big * 0.16), fill=255)
+    canvas.paste(Image.new("RGBA", (big, big), BG + (255,)), (0, 0), mask)
+    mark = fit(logo, round(big * 0.94), big)
+    canvas.alpha_composite(mark, ((big - mark.width) // 2, (big - mark.height) // 2))
+    out = canvas.resize((size, size), Image.LANCZOS)
+    if size <= 48:
+        from PIL import ImageFilter
+        out = out.filter(ImageFilter.UnsharpMask(radius=0.8, percent=90, threshold=0))
+    return out
+
+
 def on_dark(logo: Image.Image, w: int, h: int, logo_w: float, y_frac: float) -> Image.Image:
     img = Image.new("RGB", (w, h), BG)
     mark = fit(logo, round(w * logo_w), h)
@@ -87,15 +104,16 @@ def main() -> None:
     icon = rounded_icon(logo, 1024)
     icon.save(brand / "icon_1024.png", optimize=True)
     rounded_icon(logo, 256).save(brand / "icon_256.png", optimize=True)
-    icon.save(win / "4real.ico", sizes=[(s, s) for s in (16, 24, 32, 48, 64, 128, 256)])
+    tight_icon(logo, 256).save(win / "4real.ico", sizes=[(s, s) for s in (16, 20, 24, 32, 40, 48, 64, 128, 256)],
+                               append_images=[tight_icon(logo, s) for s in (16, 20, 24, 32, 40, 48, 64, 128)])
 
     # Windows installer wizard (BMP, two sizes each for high-dpi screens)
     for w, h in ((164, 314), (328, 628)):
-        on_dark(logo, w, h, 0.86, 0.18).save(win / f"wizard_large_{w}x{h}.bmp")
+        on_dark(logo, w, h, 0.96, 0.46).save(win / f"wizard_large_{w}x{h}.bmp")
     for s in (55, 110):
         rounded_icon(logo, s).convert("RGBA").save(win / f"wizard_small_{s}.png")
         bg = Image.new("RGB", (s, s), (255, 255, 255))
-        small = rounded_icon(logo, s)
+        small = tight_icon(logo, s)
         bg.paste(small, (0, 0), small)
         bg.save(win / f"wizard_small_{s}.bmp")
         (win / f"wizard_small_{s}.png").unlink()
