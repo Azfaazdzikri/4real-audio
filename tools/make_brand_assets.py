@@ -51,7 +51,7 @@ def rounded_icon(logo: Image.Image, size: int) -> Image.Image:
     off = (big - body) // 2
     ImageDraw.Draw(mask).rounded_rectangle((off, off, off + body, off + body), radius=round(body * 0.225), fill=255)
     canvas.paste(Image.new("RGBA", (big, big), BG + (255,)), (0, 0), mask)
-    mark = fit(logo, round(body * 0.84), round(body * 0.84))
+    mark = fit(logo, round(body * 0.92), round(body * 0.92))
     canvas.alpha_composite(mark, ((big - mark.width) // 2, (big - mark.height) // 2))
     return canvas.resize((size, size), Image.LANCZOS)
 
@@ -64,7 +64,13 @@ def tight_icon(logo: Image.Image, size: int) -> Image.Image:
     mask = Image.new("L", (big, big), 0)
     ImageDraw.Draw(mask).rounded_rectangle((0, 0, big - 1, big - 1), radius=round(big * 0.16), fill=255)
     canvas.paste(Image.new("RGBA", (big, big), BG + (255,)), (0, 0), mask)
-    mark = fit(logo, round(big * 0.94), big)
+    mark = fit(logo, round(big * 0.985), big)
+    if size <= 64:  # bolder lines at small sizes, otherwise the thin gold outline disappears
+        from PIL import ImageFilter
+        k = 2 * max(1, round(mark.width * (0.016 if size <= 32 else 0.010) / 2)) + 1
+        a = mark.getchannel("A").filter(ImageFilter.MaxFilter(k))
+        mark = Image.new("RGBA", mark.size, (214, 174, 56, 255))  # one gold: two-tone detail is lost at this size anyway
+        mark.putalpha(a)
     canvas.alpha_composite(mark, ((big - mark.width) // 2, (big - mark.height) // 2))
     out = canvas.resize((size, size), Image.LANCZOS)
     if size <= 48:
