@@ -36,9 +36,21 @@ contains only the public key, so it verifies offline but cannot forge a licence.
 - Take it away: `delete from entitlements where user_id = '<uuid>' and guitar_code = 'LP';` (the plugin loses it at its next refresh, or when the token expires)
 - Free a computer slot: `delete from devices where id = '<uuid>';`
 
+## Admin from the 3ffect tab (serials, prices)
+
+The **4real Audio** tab in the 3ffect admin makes serial numbers (one per recipient email, which 3ffect then emails), lists and deletes unused
+serials, and edits the price per guitar. It talks to the `admin-serials` function; the 3ffect *server* (never the browser) calls it with a shared secret.
+
+1. `supabase db push` (adds `guitars.price`, `guitars.promo`, `serials.recipient_email`) and `supabase functions deploy admin-serials`.
+2. Pick a long random secret and store its SHA-256 here (SQL editor): `insert into public.licence_settings (key, value) values ('admin_secret_sha256', encode(sha256('<secret>'::bytea), 'hex')) on conflict (key) do update set value = excluded.value;`
+3. Give the same secret to the 3ffect serverapp as `FOURREAL_ADMIN_SECRET` (and `FOURREAL_ADMIN_URL` if the project differs). Change both to rotate it.
+
+Routes (POST, header `x-admin-secret`): `catalog`, `set-prices`, `create-serials`, `list-serials`, `delete-serial`; see `_shared/admin.ts`.
+Plain serials are returned once by `create-serials` and never stored. A redeemed serial cannot be deleted; take the guitar away with the SQL above instead.
+
 ## Tests
 
-- Server logic: `node --experimental-strip-types --test server/test/core.test.ts`
+- Server logic: `node --experimental-strip-types --test server/test/core.test.ts server/test/admin.test.ts`
 - Plugin verifier (Ed25519/SHA-512 against OpenSSL vectors, token rules): see `tests/license_test.cpp` (also a CMake target `license_test`).
 - Cross-check: `LICENSE_CROSS_FILE=x.txt node --experimental-strip-types --test server/test/core.test.ts`, then `license_test tests/license/vectors.txt x.txt`.
 
