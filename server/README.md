@@ -58,3 +58,11 @@ Plain serials are returned once by `create-serials` and never stored. A redeemed
 
 Offline checks cannot stop someone who patches the plugin binary; this protects against sharing files and accounts, not against
 a determined cracker. A refreshed token is only issued online, so a revoked guitar disappears at the next refresh (max 30 days offline).
+
+## Installer uploads (admin tab on 3ffect)
+
+The admin function has a route `installer-upload-url` (`{os, version, filename, size}`) that returns a one-time signed upload URL for the
+public Storage bucket `installers` (created by `migrations/20261120000000_installers_bucket.sql`, 50 MB limit on the free plan).
+The 3ffect admin page uploads the file straight from the browser to that URL, then stores the public link and serves it through the
+stable address `/4real/download/windows` and `/4real/download/macos`. For files over 50 MB, host them elsewhere (e.g. a GitHub Release)
+and paste the link in the admin page.

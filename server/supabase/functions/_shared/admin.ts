@@ -38,12 +38,17 @@ export interface AdminStore {
   listSerials(q: { status: SerialStatus; limit: number; offset: number }): Promise<{ rows: SerialRow[]; total: number }>;
   /** Only an unused serial can be deleted. */
   deleteUnusedSerial(id: string): Promise<"deleted" | "used" | "missing">;
+  /** A one-time URL the browser can upload one file to (storage bucket "installers"), and the public URL the file will have. */
+  createInstallerUpload(path: string): Promise<{ uploadUrl: string; token: string; publicUrl: string }>;
 }
 
 const ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no 0 O 1 I; 256 % 32 == 0, so no modulo bias
 export const MAX_RECIPIENTS = 200;
 export const MAX_COUNT = 500;
 export const MAX_PRICE = 100_000_000;
+/** The free Supabase plan refuses files over 50 MB; the bucket has the same limit. Bigger installers: host elsewhere and paste the link. */
+export const MAX_INSTALLER_BYTES = 50 * 1024 * 1024;
+const INSTALLER_EXT: Record<string, string[]> = { windows: ["exe", "msi", "zip"], macos: ["pkg", "dmg", "zip"] };
 
 function fail(status: number, error: string, message: string): Result {
   return { status, body: { error, message } };
@@ -66,6 +71,8 @@ function intIn(v: unknown, min: number, max: number): number | null {
 
 /**
  * POST admin-serials/<route>, header x-admin-secret. Routes:
+ *   installer-upload-url { os: "windows"|"macos", version: "0.9.0", filename, size? }
+ *                                                                       -> { uploadUrl, token, publicUrl, path, maxBytes }
  *   catalog        {}                                                   -> { guitars: [{code,name,price,promo}] }
  *   set-prices     { prices: [{code, price, promo}] }                   -> { guitars }
  *   create-serials { guitars: ["LP","STR"] | "ALL", recipients?: [email], count?: n, note? }
@@ -90,6 +97,8 @@ export async function adminRoute(store: AdminStore, secret: string, route: strin
       return await listSerials(store, body);
     case "delete-serial":
       return await deleteSerial(store, body);
+    case "installer-upload-url":
+      return await installerUploadUrl(store, body);
     default:
       return fail(404, "not_found", "Unknown route.");
   }
@@ -198,4 +207,31 @@ async function deleteSerial(store: AdminStore, body: Record<string, unknown>): P
   if (r === "missing") return fail(404, "not_found", "No such serial.");
   if (r === "used") return fail(409, "serial_used", "This serial was already redeemed, so it cannot be deleted. Take the guitar away from the account instead.");
   return { status: 200, body: { ok: true } };
+}
+
+/** Keeps letters, digits, dot, dash and underscore only, so a file name can never escape its folder. */
+export function safeFileName(name: string): string {
+  const base = name.split(/[\\/]/).pop() ?? "";
+  return base.replace(/[^A-Za-z0-9._-]+/g, "-").replace(/^[.-]+/, "").slice(0, 120);
+}
+
+async function installerUploadUrl(store: AdminStore, body: Record<string, unknown>): Promise<Result> {
+  const os = typeof body.os === "string" ? body.os.toLowerCase() : "";
+  const allowed = INSTALLER_EXT[os];
+  if (!allowed) return fail(400, "bad_os", "os must be windows or macos.");
+  const version = typeof body.version === "string" ? body.version.trim() : "";
+  if (!/^\d{1,3}\.\d{1,3}\.\d{1,3}(-[A-Za-z0-9.]{1,20})?$/.test(version)) return fail(400, "bad_version", "Version must look like 0.9.0.");
+  const filename = typeof body.filename === "string" ? safeFileName(body.filename) : "";
+  const ext = filename.includes(".") ? filename.split(".").pop()!.toLowerCase() : "";
+  if (!filename || !allowed.includes(ext)) return fail(400, "bad_file", `A ${os} installer must be a .${allowed.join(", .")} file.`);
+  if (body.size !== undefined && body.size !== null) {
+    const size = typeof body.size === "number" ? body.size : NaN;
+    if (!Number.isFinite(size) || size <= 0) return fail(400, "bad_size", "Invalid file size.");
+    if (size > MAX_INSTALLER_BYTES) {
+      return fail(413, "too_big", "This file is over 50 MB, which the free Supabase plan does not accept. Host it elsewhere (for example a GitHub Release) and paste the link.");
+    }
+  }
+  const path = `${version}/${filename}`;
+  const made = await store.createInstallerUpload(path);
+  return { status: 200, body: { ...made, path, maxBytes: MAX_INSTALLER_BYTES } };
 }

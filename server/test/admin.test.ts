@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { adminRoute, MAX_COUNT, newSerial } from "../supabase/functions/_shared/admin.ts";
+import { adminRoute, MAX_COUNT, newSerial, safeFileName } from "../supabase/functions/_shared/admin.ts";
 import type { AdminStore, GuitarRow, SerialRow, SerialStatus } from "../supabase/functions/_shared/admin.ts";
 import { normalizeSerial, sha256Hex } from "../supabase/functions/_shared/core.ts";
 
@@ -51,6 +51,11 @@ class MemoryAdminStore implements AdminStore {
       .filter((s) => (q.status === "unused" ? !s.redeemedAt : q.status === "used" ? !!s.redeemedAt : true))
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return { rows: all.slice(q.offset, q.offset + q.limit), total: all.length };
+  }
+  uploads: string[] = [];
+  async createInstallerUpload(path: string) {
+    this.uploads.push(path);
+    return { uploadUrl: `https://x.supabase.co/storage/v1/object/upload/sign/installers/${path}?token=t`, token: "t", publicUrl: `https://x.supabase.co/storage/v1/object/public/installers/${path}` };
   }
   async deleteUnusedSerial(id: string) {
     const i = this.serials.findIndex((s) => s.id === id);
@@ -206,4 +211,42 @@ test("catalog lists the 8 guitars with price and promo", async () => {
   const r = await call("catalog");
   assert.equal((r.body.guitars as GuitarRow[]).length, 8);
   assert.deepEqual(Object.keys((r.body.guitars as GuitarRow[])[0]).sort(), ["code", "name", "price", "promo"]);
+});
+
+test("installer upload: a signed URL for a windows or macos file, path = version/filename", async () => {
+  const { store, call } = await setup();
+  const w = await call("installer-upload-url", { os: "windows", version: "0.9.0", filename: "4real-audio-0.9.0-Windows-x64-Setup.exe", size: 30_000_000 });
+  assert.equal(w.status, 200);
+  assert.equal(w.body.path, "0.9.0/4real-audio-0.9.0-Windows-x64-Setup.exe");
+  assert.match(String(w.body.publicUrl), /\/public\/installers\/0\.9\.0\//);
+  const m = await call("installer-upload-url", { os: "MacOS", version: "1.0.0-beta.1", filename: "4real-audio-1.0.0-macOS.pkg" });
+  assert.equal(m.status, 200);
+  assert.deepEqual(store.uploads, ["0.9.0/4real-audio-0.9.0-Windows-x64-Setup.exe", "1.0.0-beta.1/4real-audio-1.0.0-macOS.pkg"]);
+});
+
+test("installer upload: bad os, version, extension, path tricks and files over 50 MB are refused", async () => {
+  const { store, call } = await setup();
+  const ok = { os: "windows", version: "0.9.0", filename: "a.exe" };
+  assert.equal((await call("installer-upload-url", { ...ok, os: "linux" })).status, 400);
+  assert.equal((await call("installer-upload-url", { ...ok, version: "latest" })).status, 400);
+  assert.equal((await call("installer-upload-url", { ...ok, version: "../0.9.0" })).status, 400);
+  assert.equal((await call("installer-upload-url", { ...ok, filename: "a.pkg" })).status, 400);
+  assert.equal((await call("installer-upload-url", { ...ok, filename: "" })).status, 400);
+  assert.equal((await call("installer-upload-url", { ...ok, filename: "noext" })).status, 400);
+  assert.equal((await call("installer-upload-url", { ...ok, size: 60 * 1024 * 1024 })).status, 413);
+  assert.equal((await call("installer-upload-url", { ...ok, size: -1 })).status, 400);
+  assert.equal((await call("installer-upload-url", { os: "macos", version: "0.9.0", filename: "a.exe" })).status, 400);
+  assert.equal(store.uploads.length, 0);
+  assert.equal((await call("installer-upload-url", { ...ok }, "wrong")).status, 403);
+});
+
+test("installer upload: file names cannot escape the version folder", async () => {
+  const { store, call } = await setup();
+  assert.equal(safeFileName("../../etc/passwd.exe"), "passwd.exe");
+  assert.equal(safeFileName("C:\\Users\\me\\Setup (1).exe"), "Setup-1-.exe");
+  assert.equal(safeFileName(".hidden.exe"), "hidden.exe");
+  const r = await call("installer-upload-url", { os: "windows", version: "0.9.0", filename: "../../evil.exe" });
+  assert.equal(r.status, 200);
+  assert.equal(r.body.path, "0.9.0/evil.exe");
+  assert.deepEqual(store.uploads, ["0.9.0/evil.exe"]);
 });

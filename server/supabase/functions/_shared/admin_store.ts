@@ -88,5 +88,11 @@ export function adminStore(): AdminStore {
       const existing = must(await db.from("serials").select("id").eq("id", id).maybeSingle());
       return existing ? "used" : "missing";
     },
+    async createInstallerUpload(path) {
+      const bucket = db.storage.from("installers");
+      const { data, error } = await bucket.createSignedUploadUrl(path, { upsert: true });
+      if (error || !data) throw new Error(error?.message ?? "could not create an upload URL");
+      return { uploadUrl: data.signedUrl, token: data.token, publicUrl: bucket.getPublicUrl(path).data.publicUrl };
+    },
   };
 }
