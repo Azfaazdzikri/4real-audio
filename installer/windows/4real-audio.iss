@@ -2,6 +2,7 @@
 ; Built by .github/workflows/build.yml:  iscc /DAppVersion=0.9.0 /DBuildDir=<build/FourReal_artefacts/Release> /DOutDir=<dir> 4real-audio.iss
 ;   VST3        -> C:\Program Files\Common Files\VST3\4real-audio.vst3   (every DAW that supports VST3 finds it there)
 ;   Standalone  -> C:\Program Files\4real-audio\4real-audio.exe  + Start menu shortcut (+ optional desktop icon)
+; Manual     -> C:\Program Files\4real-audio\4real-audio-Manual.pdf (+ Start menu). The last wizard page has two ticked boxes: launch the app / open the manual.
 ; The uninstaller (Settings > Apps) removes everything the installer put in place.
 
 #ifndef AppVersion
@@ -60,12 +61,15 @@ Name: "desktopicon"; Description: "Create a desktop shortcut"; Components: stand
 
 [Files]
 Source: "{#BuildDir}\VST3\4real-audio.vst3\*"; DestDir: "{commoncf64}\VST3\4real-audio.vst3"; Components: vst3; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "..\4real-audio-Manual.pdf"; DestDir: "{app}"; Flags: ignoreversion
 Source: "{#BuildDir}\Standalone\4real-audio.exe"; DestDir: "{app}"; Components: standalone; Flags: ignoreversion
 
 [Icons]
 Name: "{group}\4real-audio"; Filename: "{app}\4real-audio.exe"; Components: standalone
+Name: "{group}\4real-audio User Manual"; Filename: "{app}\4real-audio-Manual.pdf"
 Name: "{group}\Uninstall 4real-audio"; Filename: "{uninstallexe}"
 Name: "{autodesktop}\4real-audio"; Filename: "{app}\4real-audio.exe"; Tasks: desktopicon; Components: standalone
 
 [Run]
-Filename: "{app}\4real-audio.exe"; Description: "Start 4real-audio"; Flags: nowait postinstall skipifsilent unchecked; Components: standalone
+Filename: "{app}\4real-audio.exe"; Description: "Launch 4real-audio"; Flags: nowait postinstall skipifsilent; Components: standalone
+Filename: "{app}\4real-audio-Manual.pdf"; Description: "Open the user manual (PDF)"; Flags: shellexec nowait postinstall skipifsilent

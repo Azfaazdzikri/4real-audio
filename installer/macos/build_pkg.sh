@@ -50,6 +50,11 @@ PLIST
            --identifier "$ID.$name" --version "$VERSION" "$WORK/$name.pkg"
 done
 
+# the manual (PDF) goes to /Library/Application Support/4real-audio
+mroot="$WORK/root-manual"; mkdir -p "$mroot/Library/Application Support/4real-audio"
+cp "$(dirname "$0")/../4real-audio-Manual.pdf" "$mroot/Library/Application Support/4real-audio/"
+pkgbuild --root "$mroot" --install-location / --identifier "$ID.manual" --version "$VERSION" "$WORK/manual.pkg"
+
 cat >"$WORK/distribution.xml" <<XML
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="2">
@@ -63,6 +68,7 @@ cat >"$WORK/distribution.xml" <<XML
     <line choice="vst3"/>
     <line choice="au"/>
     <line choice="standalone"/>
+    <line choice="manual"/>
   </choices-outline>
   <choice id="vst3" title="VST3 plugin" description="For DAWs that use VST3 (Studio One, Reaper, Cubase, Bitwig ...)." start_selected="true">
     <pkg-ref id="$ID.vst3"/>
@@ -73,6 +79,10 @@ cat >"$WORK/distribution.xml" <<XML
   <choice id="standalone" title="Standalone app" description="Plays your guitar through 4real-audio without a DAW (Applications folder)." start_selected="true">
     <pkg-ref id="$ID.standalone"/>
   </choice>
+  <choice id="manual" title="User manual (PDF)" description="Installs the manual to /Library/Application Support/4real-audio." start_selected="true">
+    <pkg-ref id="$ID.manual"/>
+  </choice>
+  <pkg-ref id="$ID.manual" version="$VERSION" onConclusion="none">manual.pkg</pkg-ref>
   <pkg-ref id="$ID.vst3" version="$VERSION" onConclusion="none">vst3.pkg</pkg-ref>
   <pkg-ref id="$ID.au" version="$VERSION" onConclusion="none">au.pkg</pkg-ref>
   <pkg-ref id="$ID.standalone" version="$VERSION" onConclusion="none">standalone.pkg</pkg-ref>

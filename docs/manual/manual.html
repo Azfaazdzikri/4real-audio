@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>4real-audio User Manual</title>
+<style>
+@page { size: A4; margin: 22mm 18mm 20mm 18mm; }
+:root{ --gold:#b98d2c; --gold2:#d9b24a; --ink:#1b1d23; --mut:#5c6270; --bg:#15171c; --line:#e3e0d6; --soft:#faf7ee; }
+*{box-sizing:border-box}
+body{font-family:"Segoe UI","Helvetica Neue",Arial,sans-serif;color:var(--ink);font-size:10.6pt;line-height:1.5;margin:0}
+h1{font-size:21pt;margin:0 0 6mm;padding-bottom:3mm;border-bottom:2px solid var(--gold);page-break-after:avoid}
+h2{font-size:13.5pt;margin:7mm 0 2mm;color:#7a5b12;page-break-after:avoid}
+h3{font-size:11pt;margin:4mm 0 1mm;page-break-after:avoid}
+p{margin:0 0 2.5mm} ul,ol{margin:0 0 3mm;padding-left:6mm} li{margin-bottom:1mm}
+section{page-break-before:auto;margin-bottom:2mm}
+section.pb{page-break-before:always}
+table{border-collapse:collapse;width:100%;margin:2mm 0 4mm;font-size:9.8pt;page-break-inside:avoid}
+th{background:var(--bg);color:#f0d27a;text-align:left;padding:2mm 3mm;font-weight:600}
+td{padding:2mm 3mm;border-bottom:1px solid var(--line);vertical-align:top}
+tr:nth-child(even) td{background:var(--soft)}
+code,kbd{font-family:Consolas,"Courier New",monospace;background:#f1eee3;padding:0 1.2mm;border-radius:1mm;font-size:9.6pt}
+kbd{border:1px solid #d6d0bd;border-bottom-width:2px}
+.note{border-left:3px solid var(--gold2);background:var(--soft);padding:2.5mm 4mm;margin:3mm 0;page-break-inside:avoid}
+.warn{border-left:3px solid #c0553d;background:#fbf0ec;padding:2.5mm 4mm;margin:3mm 0;page-break-inside:avoid}
+.cover{height:245mm;background:var(--bg);color:#fff;margin:-22mm -18mm 0;padding:0;display:flex;flex-direction:column;align-items:center;justify-content:center;page-break-after:always;width:210mm}
+.cover img{width:150mm}
+.cover h1{color:#f0d27a;border:0;font-size:30pt;margin:14mm 0 2mm;padding:0}
+.cover p{color:#b9bcc6;font-size:12pt;margin:0}
+.toc{columns:1;font-size:11pt} .toc li{margin-bottom:1.5mm}
+.fig{text-align:center;margin:3mm 0 4mm;page-break-inside:avoid} .fig svg{max-width:100%;height:auto}
+.cap{font-size:9pt;color:var(--mut);margin-top:1mm}
+.step{display:flex;gap:3mm;margin-bottom:2.5mm;page-break-inside:avoid}
+.step b.n{flex:0 0 7mm;height:7mm;border-radius:50%;background:var(--gold);color:#fff;text-align:center;line-height:7mm;font-size:10pt}
+.badge{display:inline-block;padding:0 2mm;border-radius:1.5mm;font-size:8.8pt;font-weight:700}
+.ok{background:#dff3e6;color:#2a7a47}.lk{background:#fbebd2;color:#9a6512}
+</style></head><body>
+
+<div class="cover">
+  <img src="logo.png" alt="4real-audio">
+  <h1>User Manual</h1>
+  <p>Version 0.9 &nbsp;·&nbsp; VST3 · Audio Unit · Standalone</p>
+  <p style="margin-top:6mm;font-size:10pt">Play one guitar. Sound like many.</p>
+</div>
+
+<section class="pb">
+<h1>Contents</h1>
+<ol class="toc">
+<li>Welcome</li><li>Installation</li><li>Quick start</li><li>Where to put it in your signal chain</li>
+<li>Your account and guitar licences</li><li>The interface</li><li>Playing the guitar controls</li>
+<li>Telling the plugin about your guitar (Source)</li><li>Voicing, level and the three big knobs</li>
+<li>The Standalone app</li><li>Using it in a DAW</li><li>Troubleshooting</li><li>Uninstalling, support and legal</li>
+</ol>
+</section>
+
+<section class="pb">
+<h1>1. Welcome</h1>
+<p><b>4real-audio</b> changes the character of your guitar's own pickups and controls into those of another guitar. Play a single-coil Stratocaster and hear it respond like a humbucker Les Paul; play a Telecaster and hear a White Falcon. One plugin holds a library of eight guitars, and you switch between them with one click.</p>
+<p>The output stays a <b>clean guitar signal</b>: there is no amp, cabinet or pedal inside. Put your favourite amp simulator after it (for example AmpliTube) and the guitar you chose now drives that amp.</p>
+<h2>The guitar library</h2>
+<table><tr><th>Guitar</th><th>Pickup selector</th><th>Controls on the picture</th></tr>
+<tr><td>Les Paul (LP)</td><td>3-way</td><td>2 volume, 2 tone</td></tr>
+<tr><td>ES-335 (335)</td><td>3-way (Neck was recorded)</td><td>2 volume, 2 tone</td></tr>
+<tr><td>SG</td><td>Bridge / Neck</td><td>2 volume, 2 tone</td></tr>
+<tr><td>PRS SE Custom 24 (SE24)</td><td>3-way</td><td>1 volume, 1 tone</td></tr>
+<tr><td>Rickenbacker 330</td><td>Bridge was recorded</td><td>2 volume, 2 tone</td></tr>
+<tr><td>Stratocaster SSS (STR)</td><td>5-way (4 positions recorded)</td><td>1 volume, 2 tone</td></tr>
+<tr><td>Telecaster (TLR)</td><td>Bridge / Neck</td><td>1 volume, 1 tone</td></tr>
+<tr><td>White Falcon</td><td>Middle was recorded</td><td>2 volume, master volume, 1 tone</td></tr></table>
+<div class="note"><b>Good to know.</b> Pickup positions that were not recorded cannot be selected. Each guitar remembers its own knob positions. 4real-audio works from the electrical behaviour of the pickups and controls and from the recorded sound of the real guitars. It is a very close character change, but it is not a guarantee that your guitar becomes identical to the real one: the body wood, the strings and your own playing stay yours.</div>
+<p style="font-size:9pt;color:var(--mut)">All guitar and brand names in this manual and in the plugin are used only to describe a sound character. 4real audio is not affiliated with, endorsed by or sponsored by any guitar maker.</p>
+</section>
+
+<section class="pb">
+<h1>2. Installation</h1>
+<h2>Windows (64-bit)</h2>
+<div class="step"><b class="n">1</b><div>Run <code>4real-audio-0.9.0-Windows-x64-Setup.exe</code> and accept the administrator prompt.</div></div>
+<div class="step"><b class="n">2</b><div>Choose what to install: <b>VST3 plugin</b> (for your DAW), <b>Standalone app</b> (plays without a DAW), or both (Full installation).</div></div>
+<div class="step"><b class="n">3</b><div>On the last page two boxes are ticked: <b>Start 4real-audio</b> and <b>Open the user manual</b>. Keep both, one of them, or none, then press Finish.</div></div>
+<table><tr><th>Part</th><th>Installed to</th></tr>
+<tr><td>VST3 plugin</td><td><code>C:\Program Files\Common Files\VST3\4real-audio.vst3</code> (every VST3 host looks here)</td></tr>
+<tr><td>Standalone app</td><td><code>C:\Program Files\4real-audio\4real-audio.exe</code>, Start menu shortcut, optional desktop icon</td></tr>
+<tr><td>This manual</td><td><code>C:\Program Files\4real-audio\4real-audio-Manual.pdf</code> and a Start menu shortcut</td></tr></table>
+<div class="warn"><b>"Windows protected your PC".</b> The installer is not yet digitally signed, so Windows SmartScreen shows this blue window. It does not mean the file is damaged. Click <b>More info</b>, then <b>Run anyway</b>.</div>
+<h2>macOS (11 or newer, Intel and Apple Silicon)</h2>
+<p>Open <code>4real-audio-0.9.0-macOS.pkg</code>, press Continue and, if you want, choose <b>Customize</b> to tick or untick the VST3, Audio Unit and Standalone parts. They install to <code>/Library/Audio/Plug-Ins/VST3</code>, <code>/Library/Audio/Plug-Ins/Components</code> and <code>/Applications</code>.</p>
+<div class="warn">If macOS says the package cannot be opened because it is from an unidentified developer, right-click the file and choose <b>Open</b>, or go to <b>System Settings → Privacy &amp; Security</b> and press <b>Open Anyway</b>.</div>
+<p>The manual is installed to <code>/Library/Application Support/4real-audio/4real-audio-Manual.pdf</code>.</p>
+<h2>Updating</h2>
+<p>Run the newer installer. It replaces the old files and keeps your account and settings.</p>
+</section>
+
+<section class="pb">
+<h1>3. Quick start</h1>
+<div class="step"><b class="n">1</b><div><b>Open your DAW</b> and rescan plugins if it does not see 4real-audio yet. Put 4real-audio on the insert of your guitar track.</div></div>
+<div class="step"><b class="n">2</b><div>Press <b>Sign in</b> (top right of the plugin) and sign in with your 3ffect.my.id account. See chapter 5.</div></div>
+<div class="step"><b class="n">3</b><div>Click a guitar in the list on the left. Guitars you own show <span class="badge ok">ACTIVE</span>; others show <span class="badge lk">LOCKED</span> and pass your sound through unchanged.</div></div>
+<div class="step"><b class="n">4</b><div>Under <b>MY GUITAR (SOURCE)</b> choose the recorded guitar that is closest to <i>your</i> guitar and the pickup position you are playing, or choose <b>Auto</b> if it is offered.</div></div>
+<div class="step"><b class="n">5</b><div>Play. Set <b>INPUT</b> so the <b>IN</b> meter moves well without staying at the top. Move the pickup selector, volume and tone knobs on the picture like on the real guitar.</div></div>
+<div class="step"><b class="n">6</b><div>Use <b>Voicing on</b> to switch the effect off and on and compare (A/B).</div></div>
+</section>
+
+<section>
+<h1>4. Where to put it in your signal chain</h1>
+<p>4real-audio expects the <b>direct, clean sound of your guitar</b>. Put it first, before amps, cabinets and effects.</p>
+<div class="fig">
+<svg viewBox="0 0 640 90" width="640" height="90" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="13">
+<g fill="#15171c"><rect x="4" y="22" width="110" height="46" rx="8"/><rect x="152" y="22" width="130" height="46" rx="8" fill="#b98d2c"/><rect x="320" y="22" width="130" height="46" rx="8"/><rect x="488" y="22" width="146" height="46" rx="8"/></g>
+<g fill="#fff" text-anchor="middle"><text x="59" y="50">Guitar / interface</text><text x="217" y="50" font-weight="700">4real-audio</text><text x="385" y="50">Amp simulator</text><text x="561" y="50">Cab / effects</text></g>
+<g stroke="#7a5b12" stroke-width="2" fill="none"><path d="M114 45H150M282 45H318M450 45H486"/></g></svg>
+<div class="cap">Typical order. A compressor or EQ before 4real-audio is fine, as long as it does not distort.</div></div>
+<ul><li>Use a <b>clean, undistorted</b> signal. Distortion before the plugin makes the result unreliable.</li><li>Keep the level healthy: peaks should not clip in your audio interface.</li><li>If you play through an amp simulator that has its own pickup or guitar model, turn that model off.</li></ul>
+</section>
+
+<section class="pb">
+<h1>5. Your account and guitar licences</h1>
+<p>Every guitar in the library is licensed separately. Your licences belong to your account on <b>3ffect.my.id</b>, the same account you used to buy 4real-audio.</p>
+<h2>Signing in</h2>
+<p>Press <b>Sign in</b> at the top right. The account window offers two ways:</p>
+<table><tr><th>Way</th><th>How</th></tr>
+<tr><td><b>Email and password</b></td><td>Type your 3ffect.my.id email and password and press <b>Sign in</b>.</td></tr>
+<tr><td><b>Sign in with browser</b></td><td>Recommended if you signed up with Google. The plugin shows a short code and opens your browser on 3ffect.my.id. Log in there if asked, check that the code is the same, and approve. The plugin signs in by itself. Press <b>Cancel browser sign-in</b> to stop waiting. The code works once and expires after 10 minutes.</td></tr></table>
+<p><b>Create account</b> and <b>Forgot password</b> open the 3ffect.my.id website. The first sign-in after a quiet period can take up to a minute while the server wakes up.</p>
+<h2>Activating a guitar with a serial number</h2>
+<p>If you received a serial such as <code>4RL-LP-XXXXX-XXXXX-XXXXX</code>, sign in, type it into <b>Serial number of a guitar</b> and press the redeem button. The guitar becomes <span class="badge ok">ACTIVE</span> on your account and can be used on all your devices. A serial works for one account only.</p>
+<h2>Devices and offline use</h2>
+<ul><li>One account can be used on up to <b>3 devices</b> (computers).</li><li>The plugin needs the internet only for signing in, redeeming a serial and refreshing the licence. After that it works <b>offline</b> until the date shown as <i>licence valid until</i> (30 days). Opening the account window with an internet connection renews it. If it expires, only guitars lock; nothing is deleted.</li><li>Press <b>Refresh</b> after buying a new guitar to see it at once. <b>Sign out</b> frees this device.</li></ul>
+<div class="note">A locked guitar never blocks your audio: it simply passes your sound through unchanged, so a project never goes silent.</div>
+</section>
+
+<section class="pb">
+<h1>6. The interface</h1>
+<div class="fig">
+<svg viewBox="0 0 680 430" width="680" height="430" xmlns="http://www.w3.org/2000/svg" font-family="Segoe UI, Arial" font-size="12">
+<rect x="1" y="1" width="678" height="428" rx="10" fill="#15171c" stroke="#444"/>
+<text x="20" y="32" fill="#f0d27a" font-weight="700" font-size="18">4real</text><text x="95" y="32" fill="#d9a441" font-weight="700" font-size="15">LES PAUL</text>
+<rect x="500" y="14" width="164" height="24" rx="5" fill="#2a2e38"/><text x="582" y="31" fill="#ddd" text-anchor="middle">Sign in</text>
+<g><rect x="16" y="52" width="130" height="226" rx="6" fill="#1d2027" stroke="#333"/>
+<rect x="22" y="58" width="118" height="24" rx="4" fill="#3a3f4b"/><text x="30" y="74" fill="#fff">LP</text><text x="132" y="74" fill="#e0a458" text-anchor="end" font-size="9">LOCKED</text>
+<g fill="#fff"><text x="30" y="102">335</text><text x="30" y="130">SG</text><text x="30" y="158">SE24</text><text x="30" y="186">Rickenbacker</text><text x="30" y="214">STR</text><text x="30" y="242">TLR</text><text x="30" y="270">White Falcon</text></g></g>
+<rect x="16" y="288" width="130" height="38" rx="4" fill="#1d2027" stroke="#333"/><text x="24" y="304" fill="#aaa" font-size="10">IN  ▮▮▮▮▯▯▯▯</text><text x="24" y="320" fill="#aaa" font-size="10">OUT ▮▮▮▮▮▯▯▯</text>
+<rect x="160" y="52" width="504" height="222" rx="6" fill="#3a2a1e"/><text x="412" y="160" fill="#c9a36f" text-anchor="middle" font-size="15">guitar picture with live pickups, selector and knobs</text>
+<g stroke="#f0d27a" fill="none"><circle cx="560" cy="200" r="14"/><circle cx="600" cy="200" r="14"/><circle cx="560" cy="240" r="14"/><circle cx="600" cy="240" r="14"/></g>
+<text x="412" y="250" fill="#f0d27a" text-anchor="middle" font-size="11">volume / tone knobs · pickup selector</text>
+<text x="160" y="296" fill="#ccc" font-weight="600">MY GUITAR (SOURCE) …</text>
+<rect x="160" y="302" width="150" height="24" rx="4" fill="#2a2e38"/><text x="170" y="318" fill="#ddd">Source guitar ▾</text>
+<rect x="320" y="302" width="110" height="24" rx="4" fill="#2a2e38"/><text x="330" y="318" fill="#ddd">Position ▾</text>
+<g fill="#ddd"><text x="470" y="312">☑ Voicing on</text><text x="470" y="330">☑ Volume knob changes level</text><text x="470" y="348">☑ Auto level (recommended)</text></g>
+<g fill="none" stroke="#f0d27a"><circle cx="270" cy="392" r="20"/><circle cx="410" cy="392" r="20"/><circle cx="550" cy="392" r="20"/></g>
+<g fill="#ccc" text-anchor="middle" font-size="11"><text x="270" y="364">INPUT</text><text x="410" y="364">INTENSITY</text><text x="550" y="364">OUTPUT</text></g>
+<g fill="#f0d27a" font-weight="700"><circle cx="582" cy="25" r="0"/></g>
+<g font-weight="700" fill="#fff" font-size="11">
+<circle cx="150" cy="62" r="10" fill="#c0553d"/><text x="150" y="66" text-anchor="middle">1</text>
+<circle cx="154" cy="298" r="10" fill="#c0553d"/><text x="154" y="302" text-anchor="middle">2</text>
+<circle cx="650" cy="62" r="10" fill="#c0553d"/><text x="650" y="66" text-anchor="middle">3</text>
+<circle cx="448" cy="296" r="10" fill="#c0553d"/><text x="448" y="300" text-anchor="middle">4</text>
+<circle cx="300" cy="372" r="10" fill="#c0553d"/><text x="300" y="376" text-anchor="middle">5</text>
+<circle cx="30" cy="336" r="10" fill="#c0553d"/><text x="30" y="340" text-anchor="middle">6</text>
+<circle cx="582" cy="48" r="10" fill="#c0553d"/><text x="582" y="52" text-anchor="middle">7</text></g></svg>
+<div class="cap">Schematic of the main window (the real window shows the real guitar photo).</div></div>
+<table><tr><th>#</th><th>Part</th><th>What it does</th></tr>
+<tr><td>1</td><td><b>Guitar list</b></td><td>Click a guitar to switch to it, with no click or pop in the sound. <span class="badge lk">LOCKED</span> guitars are not licensed on your account: clicking one opens the account window.</td></tr>
+<tr><td>2</td><td><b>MY GUITAR (SOURCE)</b></td><td>Tells the plugin what your own guitar is (chapter 8).</td></tr>
+<tr><td>3</td><td><b>The guitar picture</b></td><td>The controls of the chosen guitar (chapter 7).</td></tr>
+<tr><td>4</td><td><b>Toggles</b></td><td>Voicing on, Volume knob changes level, Auto level (chapter 9).</td></tr>
+<tr><td>5</td><td><b>INPUT / INTENSITY / OUTPUT</b></td><td>Level and strength of the effect (chapter 9).</td></tr>
+<tr><td>6</td><td><b>IN / OUT meters</b></td><td>Level going in and coming out.</td></tr>
+<tr><td>7</td><td><b>Sign in / your email</b></td><td>Opens the account window.</td></tr></table>
+<p>If the title bar of the plugin shows <i>Model failed to load</i>, see Troubleshooting.</p>
+</section>
+
+<section class="pb">
+<h1>7. Playing the guitar controls</h1>
+<p>The controls on the picture are alive and behave like the real guitar: turning a tone knob down really muffles the sound, and turning a volume knob down changes the level and the way the pickup resonates.</p>
+<table><tr><th>Control</th><th>How to use it</th></tr>
+<tr><td>Pickup</td><td>Click a pickup on the picture to select it.</td></tr>
+<tr><td>Selector switch</td><td>Drag the lever to a position or click a position. Positions that were not recorded cannot be chosen.</td></tr>
+<tr><td>Volume / tone knob</td><td>Drag up or down, or scroll the mouse wheel. Hold <kbd>Shift</kbd> for fine steps. <b>Double-click</b> sets the knob to 10. The value (0.0 to 10.0) is shown on the knob.</td></tr>
+<tr><td>INPUT / OUTPUT / INTENSITY</td><td>Same mouse actions. Double-click INTENSITY returns it to 100&nbsp;%.</td></tr></table>
+<div class="note">Each guitar remembers its own knob and selector positions, and everything is saved with your DAW project.</div>
+</section>
+
+<section>
+<h1>8. Telling the plugin about your guitar (Source)</h1>
+<p>To change your guitar into another one, 4real-audio must know what your guitar sounds like first. That is the <b>source</b>.</p>
+<h2>Choosing a recorded guitar</h2>
+<p>In the first box pick the recorded guitar whose pickup is most like the one you are playing (for example Les Paul for a humbucker bridge pickup, Stratocaster for single coils). In the second box pick the pickup position. Check by ear: when the source is close, the result is the most natural.</p>
+<h2>Auto</h2>
+<p>If <b>Auto</b> is available in your version, the plugin listens to your playing and matches it to the closest recorded guitar by itself. It shows which recorded guitars it currently resembles. Pick a fixed source instead if you prefer a constant sound.</p>
+<h2>My guitar (teach it your own pickups)</h2>
+<p>If <b>My guitar</b> is available, a panel appears with one column per pickup position of <i>your</i> guitar:</p>
+<div class="step"><b class="n">1</b><div>In the column choose which recorded guitar and position that pickup is closest to.</div></div>
+<div class="step"><b class="n">2</b><div>Press <b>Learn</b> and play a few notes with that pickup selected. Learning stops by itself after 8 seconds, or press the button again to stop.</div></div>
+<div class="step"><b class="n">3</b><div>Repeat for your other pickup positions. The bar below each column shows how much of that pickup the plugin has learned. <b>Clear</b> forgets a column.</div></div>
+</section>
+
+<section class="pb">
+<h1>9. Voicing, level and the three big knobs</h1>
+<table><tr><th>Control</th><th>What it does</th></tr>
+<tr><td><b>Voicing on</b></td><td>Turns the whole change on or off. Switch it while playing to hear your own guitar and the chosen guitar one after the other (A/B).</td></tr>
+<tr><td><b>Volume knob changes level</b></td><td>On: the loudness difference between your guitar and the chosen guitar (including what the volume knobs do) is kept, as on the real guitar. Off: that difference at the middle of the spectrum is removed, so the loudness stays about the same and mainly the tone changes.</td></tr>
+<tr><td><b>Auto level (recommended)</b></td><td>Helps the plugin by adjusting, slowly and only while you play, the level it analyses. Your dynamics are not squashed. Leave it on unless you have a reason.</td></tr>
+<tr><td><b>INPUT</b></td><td>Level into the plugin, −24 to +24 dB. Watch the IN meter.</td></tr>
+<tr><td><b>INTENSITY</b></td><td>How strongly the change is applied, 0 to 150&nbsp;%. 100&nbsp;% is the normal setting; lower values blend towards your own guitar.</td></tr>
+<tr><td><b>OUTPUT</b></td><td>Level out of the plugin, −24 to +24 dB. Use it to match the loudness of your own guitar when comparing.</td></tr></table>
+</section>
+
+<section>
+<h1>10. The Standalone app</h1>
+<p>The Standalone app is the plugin in its own window, so you can play without a DAW. Start it from the Start menu (Windows) or Applications (macOS).</p>
+<ol><li>Open the <b>Options</b> button at the top left and choose <b>Audio/MIDI Settings</b>.</li><li>Pick your audio interface as input and output device. On Windows choose an <b>ASIO</b> driver if your interface has one, for the lowest delay.</li><li>Choose a small buffer size (for example 128 or 256 samples) for playing. Raise it if you hear crackles.</li></ol>
+<div class="warn"><b>Use headphones</b> or mute the input monitoring in your interface software. If a speaker plays your guitar into the microphone or pickups, it will howl (feedback).</div>
+</section>
+
+<section>
+<h1>11. Using it in a DAW</h1>
+<ul><li><b>Studio One, Reaper, Cubase, Bitwig and other VST3 hosts:</b> rescan plugins after installing, then add <b>4real-audio</b> to the guitar track's inserts. In Studio One rescan from the plugin location settings.</li><li><b>Logic Pro / GarageBand / MainStage (macOS):</b> use the Audio Unit version, under Audio FX.</li><li>Use a mono or stereo track. A guitar is normally mono, and when both channels are identical the plugin only processes once to save CPU.</li><li>Everything is saved with the project; guitar choice, knobs and source come back when you reopen it.</li><li>For lowest delay while recording, use a small buffer in your DAW.</li></ul>
+<div class="note">Insert it <b>before</b> your amp simulator. Chapter 4 shows the order.</div>
+</section>
+
+<section class="pb">
+<h1>12. Troubleshooting</h1>
+<table><tr><th>Problem</th><th>What to try</th></tr>
+<tr><td>The plugin does not appear in my DAW</td><td>Confirm that <code>4real-audio.vst3</code> is in <code>C:\Program Files\Common Files\VST3</code>. Rescan plugins. Restart the DAW. Reinstall with the VST3 part ticked.</td></tr>
+<tr><td>The sound does not change</td><td>Is the guitar <span class="badge lk">LOCKED</span>? Sign in and check the list. Is <b>Voicing on</b> ticked? Is INTENSITY above 0?</td></tr>
+<tr><td>A guitar is LOCKED but I bought it</td><td>Open the account window, press <b>Refresh</b>. Make sure you are signed in with the same email that you used on 3ffect.my.id. If you have a serial, redeem it.</td></tr>
+<tr><td>"Licence valid until" has passed</td><td>Connect to the internet and open the account window; it renews by itself. You can also press Refresh.</td></tr>
+<tr><td>"Too many devices"</td><td>An account can be used on 3 devices. Sign out on a computer you no longer use, then sign in again.</td></tr>
+<tr><td>Sign-in is slow or says the server is unavailable</td><td>The account server can need up to a minute to wake up. Wait and try again. Check your internet connection. Try <b>Sign in with browser</b>.</td></tr>
+<tr><td>The sound is distorted or crackles</td><td>Lower INPUT so the IN meter does not hit the top. Increase the DAW or interface buffer size. Make sure no distortion is placed before the plugin.</td></tr>
+<tr><td>The result sounds unnatural</td><td>Change the source to a recorded guitar closer to yours, and set the right pickup position. Lower INTENSITY a little.</td></tr>
+<tr><td>It is much quieter or louder than my guitar</td><td>Adjust OUTPUT. Try switching <b>Volume knob changes level</b> off to remove the loudness difference.</td></tr>
+<tr><td>"Model failed to load"</td><td>Reinstall 4real-audio. If it stays, contact support with your Windows or macOS version.</td></tr>
+<tr><td>Standalone howls</td><td>Use headphones or mute input monitoring (chapter 10).</td></tr></table>
+</section>
+
+<section class="pb">
+<h1>13. Uninstalling, support and legal</h1>
+<h2>Uninstalling</h2>
+<p><b>Windows:</b> Settings → Apps → 4real-audio → Uninstall. This removes the plugin, the Standalone app and this manual.<br><b>macOS:</b> delete <code>/Library/Audio/Plug-Ins/VST3/4real-audio.vst3</code>, <code>/Library/Audio/Plug-Ins/Components/4real-audio.component</code>, <code>/Applications/4real-audio.app</code> and <code>/Library/Application Support/4real-audio</code>.</p>
+<h2>Support</h2>
+<p>Website and account: <b>https://3ffect.my.id</b>. When you ask for help, tell us your plugin version (0.9.0), your operating system, your DAW and a short description of what happened.</p>
+<h2>Legal</h2>
+<p>4real-audio is © 4real audio. Your licence entitles you to use the guitars activated on your account on up to three of your own computers. Guitar and brand names mentioned belong to their owners and are used only to describe a sound character; 4real audio is not affiliated with them. The plugin is built with JUCE.</p>
+</section>
+</body></html>
