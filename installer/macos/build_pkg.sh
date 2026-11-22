@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds ONE installer (4real-audio-<version>-macOS.pkg) from the built plugin bundles.
+# Builds ONE installer (4real-audio-<version>-macOS-<AppleSilicon|Intel>.pkg) from the built plugin bundles.
 #   usage: installer/macos/build_pkg.sh <version> <artefacts dir> <output dir>
 #   <artefacts dir> holds VST3/4real-audio.vst3, AU/4real-audio.component and Standalone/4real-audio.app
 # The installer puts them in /Library/Audio/Plug-Ins/VST3, /Library/Audio/Plug-Ins/Components and /Applications, and lets
@@ -9,7 +9,9 @@ set -euo pipefail
 VERSION="${1:?version}"
 ART="${2:?artefacts dir}"
 OUT="${3:?output dir}"
+LABEL="${4:-}"   # e.g. AppleSilicon or Intel: one installer per processor type keeps each file under 50 MB
 ID="com.fourreal.audio"
+SUFFIX="${LABEL:+-$LABEL}"
 
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
@@ -26,6 +28,8 @@ for part in "${PARTS[@]}"; do
   if [ ! -e "$ART/$src" ]; then
     echo "missing $ART/$src"; find "$ART" -maxdepth 3 | head -50; exit 1
   fi
+  # smaller files: drop the local symbols of the binaries (the signature is made after this)
+  find "$ART/$src" -type f -perm -u+x -path "*/Contents/MacOS/*" -exec strip -x {} \; 2>/dev/null || true
   # Ad-hoc signature: Apple Silicon refuses to load unsigned code. (A paid Apple Developer ID would let the installer be notarized.)
   codesign --force --deep --sign - "$ART/$src"
 
@@ -91,5 +95,5 @@ XML
 
 mkdir -p "$WORK/resources"
 cp "$(dirname "$0")/pkg_background.png" "$WORK/resources/"
-productbuild --distribution "$WORK/distribution.xml" --resources "$WORK/resources" --package-path "$WORK" "$OUT/4real-audio-$VERSION-macOS.pkg"
-echo "Built $OUT/4real-audio-$VERSION-macOS.pkg"
+productbuild --distribution "$WORK/distribution.xml" --resources "$WORK/resources" --package-path "$WORK" "$OUT/4real-audio-$VERSION-macOS$SUFFIX.pkg"
+echo "Built $OUT/4real-audio-$VERSION-macOS$SUFFIX.pkg"

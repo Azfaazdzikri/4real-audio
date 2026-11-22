@@ -4,7 +4,7 @@ name: Build installers (Windows + macOS)
 # the Ed25519 PUBLIC key) are in CMakeLists.txt; the private signing key lives only in the Supabase secret LICENSE_SIGNING_KEY.
 # Output: ONE installer per platform, ready to give to players:
 #   4real-audio-<version>-Windows-x64-Setup.exe   (Inno Setup: VST3 + Standalone, with uninstaller)
-#   4real-audio-<version>-macOS.pkg               (VST3 + Audio Unit + Standalone, Intel + Apple Silicon)
+#   4real-audio-<version>-macOS-AppleSilicon.pkg and -Intel.pkg   (VST3 + Audio Unit + Standalone, each under 50 MB)
 
 on:
   push:
@@ -77,6 +77,15 @@ jobs:
   macos-installer:
     needs: dsp-tests
     runs-on: macos-latest
+    # one installer per processor type: a universal one is about 88 MB, each of these is under 50 MB
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: arm64
+            label: AppleSilicon
+          - arch: x86_64
+            label: Intel
     steps:
       - uses: actions/checkout@v4
 
@@ -84,19 +93,20 @@ jobs:
         id: ver
         run: echo "version=$(sed -n 's/^project(FourRealAudio VERSION \([0-9.]*\).*/\1/p' CMakeLists.txt)" >> "$GITHUB_OUTPUT"
 
-      - name: "Configure (universal build: Apple Silicon and Intel, macOS 11 and newer)"
-        run: cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
+      - name: "Configure (${{ matrix.label }}, macOS 11 and newer)"
+        run: cmake -S . -B build -G Xcode -DCMAKE_OSX_ARCHITECTURES="${{ matrix.arch }}" -DCMAKE_OSX_DEPLOYMENT_TARGET=11.0
 
       - name: Build VST3, Audio Unit and Standalone
         run: cmake --build build --config Release --target FourReal_VST3 FourReal_AU FourReal_Standalone --parallel
 
       - name: Build the installer
         run: |
-          ./installer/macos/build_pkg.sh "${{ steps.ver.outputs.version }}" build/FourReal_artefacts/Release installer-out
+          ./installer/macos/build_pkg.sh "${{ steps.ver.outputs.version }}" build/FourReal_artefacts/Release installer-out "${{ matrix.label }}"
           ls -la installer-out
+          for f in installer-out/*.pkg; do s=$(stat -f%z "$f"); echo "$f = $((s/1048576)) MiB"; [ "$s" -gt 52428800 ] && echo "::warning::$f is over 50 MB"; done; true
 
       - uses: actions/upload-artifact@v4
         with:
-          name: 4real-audio-${{ steps.ver.outputs.version }}-macOS-installer
+          name: 4real-audio-${{ steps.ver.outputs.version }}-macOS-${{ matrix.label }}-installer
           path: installer-out/*.pkg
           if-no-files-found: error

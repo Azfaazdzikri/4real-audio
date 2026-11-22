@@ -6,7 +6,7 @@ GitHub Actions (`.github/workflows/build.yml`) membuat satu installer per sistem
 | Sistem | File | Isi |
 |---|---|---|
 | Windows 64-bit | `4real-audio-<versi>-Windows-x64-Setup.exe` | VST3 → `C:\Program Files\Common Files\VST3`, aplikasi standalone → `C:\Program Files\4real-audio` + Start menu, uninstaller di Settings → Apps |
-| macOS 11+ (Intel dan Apple Silicon) | `4real-audio-<versi>-macOS.pkg` | VST3 → `/Library/Audio/Plug-Ins/VST3`, Audio Unit → `/Library/Audio/Plug-Ins/Components`, standalone → `/Applications` |
+| macOS 11+ | `4real-audio-<versi>-macOS-AppleSilicon.pkg` (Mac M1/M2/M3/M4) dan `4real-audio-<versi>-macOS-Intel.pkg` (Mac Intel), masing-masing di bawah 50 MB | VST3 → `/Library/Audio/Plug-Ins/VST3`, Audio Unit → `/Library/Audio/Plug-Ins/Components`, standalone → `/Applications` |
 
 Pemain tidak perlu memindahkan file: jalankan installer, pilih bagian yang diinginkan, selesai.
 
